@@ -2,7 +2,7 @@ name: Release
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+
 on:
   push:
     branches: [ main ]
@@ -36,6 +36,6 @@ jobs:
 
       - run: pnpm install
       - run: pnpm test
-      - run: pnpm exec semantic-release
+      - run: pnpm semantic-release
         env:
-          CI: 'true'}
+          CI: 'true'
