@@ -105,9 +105,11 @@ app.all('/trpc/*', async (c) => {
 })
 
 // Serve static files from dist/client in production
+// serveStatic always prefixes paths with "./" so root must be relative to cwd
 const clientDir = path.join(packageRoot, 'dist/client')
+const clientRoot = path.relative(process.cwd(), clientDir)
 if (existsSync(clientDir)) {
-  app.use('/*', serveStatic({ root: clientDir }))
+  app.use('/*', serveStatic({ root: clientRoot }))
 
   // SPA fallback: serve index.html for non-API routes
   app.get('*', async (c) => {
