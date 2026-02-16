@@ -127,11 +127,32 @@ app.onError((err, c) => {
   return c.json({ error: err.message }, 500)
 })
 
-const port = Number(process.env.PORT) || 3100
+const preferredPort = Number(process.env.PORT) || 3100
+
+async function findAvailablePort(start: number): Promise<number> {
+  const { createServer } = await import('net')
+  let port = start
+  while (port < start + 20) {
+    const available = await new Promise<boolean>((resolve) => {
+      const server = createServer()
+      server.once('error', () => resolve(false))
+      server.once('listening', () => server.close(() => resolve(true)))
+      server.listen(port)
+    })
+    if (available) return port
+    port++
+  }
+  throw new Error(`No available port found between ${start} and ${port}`)
+}
+
+const port = await findAvailablePort(preferredPort)
 
 serve({
   fetch: app.fetch,
   port,
 })
 
+if (port !== preferredPort) {
+  console.log(`[RepoHub] Port ${preferredPort} in use, using ${port} instead`)
+}
 console.log(`[RepoHub] Server running on http://localhost:${port}`)
