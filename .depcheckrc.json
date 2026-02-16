@@ -1,0 +1,17 @@
+{
+  "ignores": [
+    "@eslint/js",
+    "@semantic-release/*",
+    "@types/*",
+    "@vitest/*",
+    "eslint",
+    "eslint-plugin-*",
+    "prettier",
+    "semantic-release",
+    "typescript-eslint",
+    "depcheck",
+    "@tailwindcss/postcss",
+    "postcss",
+    "tailwindcss"
+  ]
+}
