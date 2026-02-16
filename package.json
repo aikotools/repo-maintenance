@@ -3,6 +3,9 @@
   "version": "0.0.0-semantic-release",
   "private": false,
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "repohub": "./bin/repohub.js"
   },
