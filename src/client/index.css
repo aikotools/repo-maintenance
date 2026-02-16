@@ -5,7 +5,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
+@theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
@@ -48,34 +48,34 @@
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
   }
+}
 
-  /* Dark mode overrides */
-  .dark {
-    --color-background: #09090b;
-    --color-foreground: #fafafa;
-    --color-card: #0a0a0f;
-    --color-card-foreground: #fafafa;
-    --color-muted: #1a1a2e;
-    --color-muted-foreground: #a1a1aa;
-    --color-border: #27272a;
-    --color-input: #27272a;
-    --color-primary: #3b82f6;
-    --color-primary-foreground: #ffffff;
-    --color-secondary: #1e1e2e;
-    --color-secondary-foreground: #e4e4e7;
-    --color-accent: #1e293b;
-    --color-accent-foreground: #e2e8f0;
-    --color-destructive: #ef4444;
-    --color-success: #22c55e;
-    --color-warning: #eab308;
-    --color-ring: #3b82f6;
+/* Dark mode overrides — must be unlayered to override @theme inline values */
+.dark {
+  --color-background: #09090b;
+  --color-foreground: #fafafa;
+  --color-card: #0a0a0f;
+  --color-card-foreground: #fafafa;
+  --color-muted: #1a1a2e;
+  --color-muted-foreground: #a1a1aa;
+  --color-border: #27272a;
+  --color-input: #27272a;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #1e1e2e;
+  --color-secondary-foreground: #e4e4e7;
+  --color-accent: #1e293b;
+  --color-accent-foreground: #e2e8f0;
+  --color-destructive: #ef4444;
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+  --color-ring: #3b82f6;
 
-    --color-sidebar-bg: #0a0a0f;
-    --color-sidebar-foreground: #d4d4d8;
-    --color-sidebar-border: #1e1e2e;
-    --color-sidebar-hover: #1a1a2e;
-    --color-sidebar-active: #1e293b;
-  }
+  --color-sidebar-bg: #0a0a0f;
+  --color-sidebar-foreground: #d4d4d8;
+  --color-sidebar-border: #1e1e2e;
+  --color-sidebar-hover: #1a1a2e;
+  --color-sidebar-active: #1e293b;
 }
 
 /* Scrollbar styling */
