@@ -43,11 +43,11 @@ export function spawnProcess(
   }
 
   const promise = new Promise<SpawnResult>((resolve, reject) => {
-    const stdoutChunks: Buffer[] = []
-    const stderrChunks: Buffer[] = []
+    const stdoutChunks: Uint8Array[] = []
+    const stderrChunks: Uint8Array[] = []
 
-    proc.stdout?.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
-    proc.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk))
+    proc.stdout?.on('data', (chunk: Uint8Array) => stdoutChunks.push(chunk))
+    proc.stderr?.on('data', (chunk: Uint8Array) => stderrChunks.push(chunk))
 
     proc.on('error', (err) => reject(err))
 
