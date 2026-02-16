@@ -2,7 +2,7 @@
 
 Web-based dashboard for managing multi-repo monorepos. Provides dependency graph visualization, cascade updates, bulk operations, and Git management across all your packages.
 
-![Domain Overview](docs/screenshots/dashboard.png)
+![Domain Overview](https://raw.githubusercontent.com/aikotools/repo-maintenance/main/docs/screenshots/dashboard.png)
 
 ## Features
 
@@ -34,7 +34,7 @@ npm install -g @aikotools/repo-maintenance
    - **Default Branch** (e.g. `main`)
 4. Click **"Refresh repo structure"** to scan your repos
 
-![Settings](docs/screenshots/settings.png)
+![Settings](https://raw.githubusercontent.com/aikotools/repo-maintenance/main/docs/screenshots/settings.png)
 
 ## Prerequisites
 
@@ -58,13 +58,13 @@ Click on any repo in the sidebar to open the detail view:
 - **Actions** — Refresh, Pull, Start Cascade.
 - **Recent Commits** — last commits for the repo.
 
-![Repository Detail](docs/screenshots/repo-detail.png)
+![Repository Detail](https://raw.githubusercontent.com/aikotools/repo-maintenance/main/docs/screenshots/repo-detail.png)
 
 ### Dependency Graph
 
 Interactive visualization of all internal dependencies as a node-edge graph (React Flow). Filter by domain, toggle between full graph and affected-only views. Click on a node to navigate to the repo detail.
 
-![Dependency Graph](docs/screenshots/dependency-graph.png)
+![Dependency Graph](https://raw.githubusercontent.com/aikotools/repo-maintenance/main/docs/screenshots/dependency-graph.png)
 
 ### Pull All
 
@@ -105,7 +105,7 @@ Propagates dependency updates automatically through the entire dependency chain.
    - **Commit Prefix** — e.g. `deps: ` or `chore: `
 4. Review the plan and start
 
-![Cascade Update](docs/screenshots/cascade.png)
+![Cascade Update](https://raw.githubusercontent.com/aikotools/repo-maintenance/main/docs/screenshots/cascade.png)
 
 **Per repo, the cascade executes:**
 
@@ -126,7 +126,7 @@ Run arbitrary shell commands across multiple repos in parallel:
 3. Choose concurrency (1–20)
 4. Start — live output per repo with exit code and duration
 
-![Bulk Operations](docs/screenshots/bulk-operations.png)
+![Bulk Operations](https://raw.githubusercontent.com/aikotools/repo-maintenance/main/docs/screenshots/bulk-operations.png)
 
 ### Packages (File-URL Management)
 
