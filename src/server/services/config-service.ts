@@ -24,6 +24,12 @@ const DEFAULT_CONFIG: ProjectConfig = {
   npmRegistry: 'https://npm.pkg.github.com',
   parallelTasks: 6,
   defaultBranch: 'main',
+  quickActions: [
+    { label: 'pnpm install', command: 'pnpm install' },
+    { label: 'pnpm test', command: 'pnpm test' },
+    { label: 'pnpm build', command: 'pnpm build' },
+    { label: 'git pull', command: 'git pull' },
+  ],
 }
 
 const DEFAULT_GLOBAL: GlobalConfig = {

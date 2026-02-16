@@ -3,8 +3,8 @@
  */
 
 import { useState } from 'react'
-import { Check, FileDown, FolderOpen, Loader2, Map, Settings, X } from 'lucide-react'
-import type { ProjectConfig } from '../../../shared/types'
+import { Check, FileDown, FolderOpen, Loader2, Map, Plus, Settings, Trash2, X } from 'lucide-react'
+import type { ProjectConfig, QuickAction } from '../../../shared/types'
 import { trpc } from '../../trpc'
 import { RepoMappingDialog } from './RepoMappingDialog'
 
@@ -19,7 +19,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-lg rounded-lg border border-border bg-card shadow-xl">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-lg border border-border bg-card shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
@@ -35,7 +35,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
         </div>
 
         {/* Body */}
-        <div className="space-y-4 p-4">
+        <div className="scrollbar-thin min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           {isLoading ? (
             <div className="flex items-center gap-3 py-4">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -94,6 +94,14 @@ function SettingsForm({
   const [npmRegistry, setNpmRegistry] = useState(
     initialData.npmRegistry || 'https://npm.pkg.github.com'
   )
+  const [quickActions, setQuickActions] = useState<QuickAction[]>(
+    initialData.quickActions ?? [
+      { label: 'pnpm install', command: 'pnpm install' },
+      { label: 'pnpm test', command: 'pnpm test' },
+      { label: 'pnpm build', command: 'pnpm build' },
+      { label: 'git pull', command: 'git pull' },
+    ]
+  )
 
   function handleSave() {
     updateMutation.mutate({
@@ -110,6 +118,7 @@ function SettingsForm({
         .map((s) => s.trim())
         .filter(Boolean),
       npmRegistry: npmRegistry.trim() || 'https://npm.pkg.github.com',
+      quickActions: quickActions.filter((a) => a.label.trim() && a.command.trim()),
     })
   }
 
@@ -230,6 +239,55 @@ function SettingsForm({
           placeholder="https://npm.pkg.github.com"
           className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
         />
+      </div>
+
+      {/* Quick Actions */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Quick Actions (Bulk Operations)
+        </label>
+        <div className="space-y-1.5">
+          {quickActions.map((action, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={action.label}
+                onChange={(e) => {
+                  const next = [...quickActions]
+                  next[i] = { ...next[i], label: e.target.value }
+                  setQuickActions(next)
+                }}
+                placeholder="Label"
+                className="w-1/3 rounded-md border border-border bg-background px-2 py-1 text-sm focus:border-primary focus:outline-none"
+              />
+              <input
+                type="text"
+                value={action.command}
+                onChange={(e) => {
+                  const next = [...quickActions]
+                  next[i] = { ...next[i], command: e.target.value }
+                  setQuickActions(next)
+                }}
+                placeholder="Command"
+                className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 font-mono text-sm focus:border-primary focus:outline-none"
+              />
+              <button
+                onClick={() => setQuickActions(quickActions.filter((_, j) => j !== i))}
+                title="Remove action"
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => setQuickActions([...quickActions, { label: '', command: '' }])}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Plus className="h-3 w-3" />
+            Add action
+          </button>
+        </div>
       </div>
 
       {/* Repo Mapping */}

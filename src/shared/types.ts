@@ -125,6 +125,12 @@ export interface ProjectSummary {
   isActive: boolean
 }
 
+/** A configurable quick action for bulk operations */
+export interface QuickAction {
+  label: string
+  command: string
+}
+
 /** Project configuration stored in ~/.repoMaintenance/projects/<slug>/project.json */
 export interface ProjectConfig {
   name: string
@@ -141,6 +147,8 @@ export interface ProjectConfig {
   repoMapping?: Record<string, string>
   /** Repo names to skip during pull-all */
   ignoreRepos?: string[]
+  /** Configurable quick actions for bulk operations */
+  quickActions?: QuickAction[]
 }
 
 /** Dashboard statistics */

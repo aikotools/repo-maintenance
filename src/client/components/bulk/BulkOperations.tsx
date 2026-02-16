@@ -13,20 +13,6 @@ import { BulkProgressView } from './BulkProgressView'
 
 type Phase = 'configure' | 'running' | 'done'
 
-interface QuickAction {
-  label: string
-  command: string
-  icon: string
-  parseCoverage: boolean
-}
-
-const QUICK_ACTIONS: QuickAction[] = [
-  { label: 'pnpm install', command: 'pnpm install', icon: 'download', parseCoverage: false },
-  { label: 'pnpm test', command: 'pnpm test', icon: 'test', parseCoverage: true },
-  { label: 'pnpm build', command: 'pnpm build', icon: 'build', parseCoverage: false },
-  { label: 'git pull', command: 'git pull', icon: 'git', parseCoverage: false },
-]
-
 interface BulkOperationsProps {
   repos: Repo[]
 }
@@ -37,6 +23,10 @@ export function BulkOperations({ repos }: BulkOperationsProps) {
   const [customCommand, setCustomCommand] = useState('')
   const [concurrency, setConcurrency] = useState(4)
   const [executionId, setExecutionId] = useState<string | null>(null)
+
+  // Load quick actions from project config
+  const projectQuery = trpc.project.get.useQuery()
+  const quickActions = projectQuery.data?.quickActions ?? []
 
   // Execute mutation
   const executeMutation = trpc.bulk.execute.useMutation({
@@ -110,7 +100,7 @@ export function BulkOperations({ repos }: BulkOperationsProps) {
             <div className="space-y-2">
               <h2 className="text-sm font-medium">Quick Actions</h2>
               <div className="flex flex-wrap gap-2">
-                {QUICK_ACTIONS.map((action) => (
+                {quickActions.map((action) => (
                   <button
                     key={action.command}
                     onClick={() => handleExecute(action.command)}

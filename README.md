@@ -1,227 +1,199 @@
-# RepoHub - Repository Maintenance Tool
+# RepoHub
 
-Web-basiertes Dashboard zur Verwaltung des `saas-coding-kernel` Multi-Repo Monorepos. Bietet Dependency-Graph, Bulk-Operationen, Cascade-Updates und Git-Management fuer 140+ Packages.
+Web-based dashboard for managing multi-repo monorepos. Provides dependency graph visualization, cascade updates, bulk operations, and Git management across all your packages.
 
-## Voraussetzungen
-
-| Tool | Version | Zweck |
-|------|---------|-------|
-| **Bun** | latest | Backend-Runtime |
-| **pnpm** | 10+ | Package Manager |
-| **Node.js** | 24+ | Build-Tools |
-| **Git** | - | Repository-Operationen |
-| **GitHub CLI (`gh`)** | - | Pull-All (Clone + GitHub-Abfrage) |
-
-GitHub CLI muss authentifiziert sein (`gh auth login`).
-
-## Installation & Start
-
-
-```bash
-cd repo/tools/tool-repo-maintenance
-pnpm install
-cp .env.example .env   # Anpassen falls noetig
-```
-
-### Development
-
-```bash
-pnpm dev          # Backend (3100) + Frontend (3101) parallel
-pnpm dev:server   # Nur Backend
-pnpm dev:client   # Nur Frontend
-```
-
-Oeffne http://localhost:3101 im Browser.
-
-### Production
-
-```bash
-pnpm build
-pnpm start        # http://localhost:3100
-```
-
-## Konfiguration
-
-### .env
-
-```bash
-PORT=3100                                # Backend-Port
-VITE_PORT=3101                           # Vite Dev-Server Port
-NPM_REGISTRY=https://npm.pkg.github.com # npm Registry (fuer Cascade)
-```
-
-### Projekt-Einstellungen (UI)
-
-Beim ersten Start ueber das Zahnrad-Icon (Settings) konfigurieren:
-
-- **NPM Organizations** - z.B. `@xhubio-saas` (zum Erkennen interner Dependencies)
-- **GitHub Organizations** - z.B. `xhubio-saas` (fuer Pull-All)
-- **Parallel Tasks** - Anzahl gleichzeitiger Operationen (1-20, Default: 6)
-- **Default Branch** - z.B. `main`
-
-Die Konfiguration wird in `.repoMaintenance/project.json` gespeichert.
+![Domain Overview](docs/screenshots/dashboard.png)
 
 ## Features
 
-### Dashboard
+- **Dashboard** with repo statistics and domain overview
+- **Interactive dependency graph** visualization with domain filtering
+- **Cascade updates** — propagate dependency changes through the entire chain
+- **Pull All** — clone/pull all repos from GitHub in parallel
+- **Bulk operations** — run shell commands across multiple repos
+- **Repository detail** with diff viewer, dependencies, commit & push
+- **File-URL dependency management** — switch between `file:` and npm versions
+- **Persistent operation history** for cascade and pull-all runs
 
-Uebersicht mit Statistiken: Gesamtzahl Repos, Domains, uncommitted Changes und Dependency-Kanten. Zeigt Repos mit offenen Aenderungen und eine Domain-Uebersicht.
+## Installation
 
-### Repository-Detail
+```bash
+npm install -g @aikotools/repo-maintenance
+```
 
-Klick auf ein Repo in der Sidebar oeffnet die Detailansicht:
+## Quick Start
 
-- **Changes-Tab** - Geaenderte Dateien mit Diff-Viewer. Untracked Files koennen per Klick zu `.gitignore` hinzugefuegt werden.
-- **Dependencies-Tab** - Interne Abhaengigkeiten mit Links zum jeweiligen Repo.
-- **Dependents-Tab** - Repos die von diesem Repo abhaengen.
-- **Actions** - Commit & Push, Pull, Start Cascade.
-- **Recent Commits** - Letzte Commits des Repos.
+1. Run `repohub`
+2. Open http://localhost:3100
+3. Click the gear icon (Settings) and configure:
+   - **Project Name** — a label for your monorepo
+   - **Root Folder** — path to the directory containing all your repos
+   - **npm Organizations** — scoped packages to detect as internal deps (e.g. `@myorg`)
+   - **GitHub Organizations** — for Pull All operations (e.g. `myorg`)
+   - **Parallel Tasks** (1–20, default: 6)
+   - **Default Branch** (e.g. `main`)
+4. Click **"Refresh repo structure"** to scan your repos
+
+![Settings](docs/screenshots/settings.png)
+
+## Prerequisites
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| **Node.js** | 24+ | Runtime |
+| **Git** | — | Repository operations |
+| **GitHub CLI (`gh`)** | — | Pull All (clone + GitHub queries) |
+
+GitHub CLI must be authenticated (`gh auth login`).
+
+## Feature Details
+
+### Repository Detail
+
+Click on any repo in the sidebar to open the detail view:
+
+- **Changes tab** — modified files with diff viewer. Untracked files can be added to `.gitignore` with one click.
+- **Dependencies tab** — internal dependencies with links to the respective repo.
+- **Dependents tab** — repos that depend on this repo.
+- **Actions** — Refresh, Pull, Start Cascade.
+- **Recent Commits** — last commits for the repo.
+
+![Repository Detail](docs/screenshots/repo-detail.png)
 
 ### Dependency Graph
 
-Interaktive Visualisierung aller internen Abhaengigkeiten als Node-Edge-Graph (React Flow). Klick auf einen Node navigiert zum Repo-Detail.
+Interactive visualization of all internal dependencies as a node-edge graph (React Flow). Filter by domain, toggle between full graph and affected-only views. Click on a node to navigate to the repo detail.
+
+![Dependency Graph](docs/screenshots/dependency-graph.png)
 
 ### Pull All
 
-Synchronisiert alle Repos mit GitHub - wie `repo-maintenance.sh`, aber mit UI:
+Synchronizes all repos with GitHub:
 
-1. Holt alle Repos der konfigurierten GitHub-Organisation via `gh repo list`
-2. **Klont** fehlende Repos in den richtigen Domain-Ordner
-3. **Pullt** existierende Repos (ueberspringt bei uncommitted Changes)
-4. Zeigt Live-Fortschritt mit Status pro Repo
+1. Fetches all repos from the configured GitHub organization via `gh repo list`
+2. **Clones** missing repos into the correct domain folder
+3. **Pulls** existing repos (skips repos with uncommitted changes)
+4. Shows live progress with per-repo status
 
-**Status-Typen:**
+**Status types:**
 
-| Status | Bedeutung |
-|--------|-----------|
-| Updated | Erfolgreich gepullt |
-| Already up-to-date | Keine Aenderungen |
-| Cloned | Neu von GitHub geklont |
-| Skipped | In Ignore-Liste |
-| Unmapped | Kein Domain-Mapping konfiguriert |
-| Has changes | Uebersprungen wegen uncommitted Changes |
-| Failed | Fehler beim Pull/Clone |
+| Status | Meaning |
+|--------|---------|
+| Updated | Successfully pulled |
+| Already up-to-date | No changes |
+| Cloned | Newly cloned from GitHub |
+| Skipped | In ignore list |
+| Unmapped | No domain mapping configured |
+| Has changes | Skipped due to uncommitted changes |
+| Failed | Error during pull/clone |
 
-**Repo-Mapping konfigurieren:** Settings > Repo Mapping > Edit. Dort koennen Repos Domains zugewiesen, ignoriert oder aus der Unmapped-Liste zugeordnet werden.
+**Repo mapping:** Settings > Repo Mapping > Edit. Assign repos to domains, ignore repos, or map unmapped repos.
 
 ### Cascade Updates
 
-Propagiert Dependency-Updates automatisch durch die gesamte Abhaengigkeitskette.
+Propagates dependency updates automatically through the entire dependency chain.
 
-**Beispiel:** `lib-invoice-interface` wird aktualisiert. Cascade aktualisiert automatisch alle abhaengigen Pakete in der richtigen Reihenfolge (topologisch sortiert, Layer fuer Layer).
+**Example:** `lib-core` is updated. Cascade automatically updates all dependent packages in the correct order (topologically sorted, layer by layer).
 
-**Ablauf:**
+**Workflow:**
 
-1. Source-Repo auswaehlen (z.B. `lib-invoice-interface`)
-2. Tool berechnet alle betroffenen Repos in topologischer Reihenfolge
-3. Optionen konfigurieren:
-   - **Wait for CI** - Wartet zwischen Layern auf CI/CD-Publish
-   - **Run Tests** - Fuehrt `pnpm test` vor dem Commit aus
-   - **Commit Prefix** - z.B. `deps: ` oder `chore: `
-4. Plan bestaetigen und starten
+1. Select source repo (e.g. `lib-core`)
+2. Tool calculates all affected repos in topological order
+3. Configure options:
+   - **Wait for CI** — wait between layers for CI/CD to publish
+   - **Run Tests** — run tests before committing
+   - **Commit Prefix** — e.g. `deps: ` or `chore: `
+4. Review the plan and start
 
-**Pro Repo wird ausgefuehrt:**
+![Cascade Update](docs/screenshots/cascade.png)
 
-1. `package.json` Dependencies aktualisieren
+**Per repo, the cascade executes:**
+
+1. Update `package.json` dependencies
 2. `npm install`
-3. Tests (optional)
+3. Run tests (optional)
 4. Commit + Push
-5. Auf CI warten (optional) + publishte Version aufloesen
+5. Wait for CI (optional) + resolve published version
 
-**Steuerung waehrend der Ausfuehrung:** Pause, Resume, Abort, Skip Failed, manuell Version setzen.
+**Controls during execution:** Pause, Resume, Abort, Skip Failed, manually set version.
 
 ### Bulk Operations
 
-Beliebige Shell-Befehle ueber mehrere Repos gleichzeitig ausfuehren:
+Run arbitrary shell commands across multiple repos in parallel:
 
-1. Repos filtern nach Domain, Typ oder Suchbegriff
-2. Befehl eingeben (z.B. `npm run build`, `git status`, `npm test`)
-3. Parallelitaet waehlen (1-20)
-4. Starten - Live-Output pro Repo mit Exit-Code und Dauer
+1. Filter repos by domain, type, or search term
+2. Enter a command (e.g. `npm run build`, `git status`, `npm test`)
+3. Choose concurrency (1–20)
+4. Start — live output per repo with exit code and duration
+
+![Bulk Operations](docs/screenshots/bulk-operations.png)
 
 ### Packages (File-URL Management)
 
-Zeigt Repos mit `file:`-Dependencies in `package.json`. Ermoeglicht Batch-Umschaltung zwischen lokalen `file:`-Pfaden (Entwicklung) und npm-Versionen (Produktion).
+Shows repos with `file:` dependencies in `package.json`. Enables batch switching between local `file:` paths (development) and npm versions (production).
 
 ### History
 
-Persistente Historie aller Cascade- und Pull-All-Operationen mit Status, betroffenen Repos und Dauer.
+Persistent history of all Cascade and Pull All operations with status, affected repos, and duration.
 
-## Datenablage
+## Configuration
+
+### Environment (.env)
+
+```bash
+PORT=3100                                # Backend port
+VITE_PORT=3101                           # Vite dev server port
+NPM_REGISTRY=https://npm.pkg.github.com # npm registry (for Cascade version resolution)
+```
+
+### Project Settings
+
+Configured via the Settings dialog (gear icon) in the UI. Persisted in `.repoMaintenance/project.json`.
+
+### Data Storage
 
 ```
 .repoMaintenance/
-├── project.json          # Projekt-Konfiguration + Repo-Mapping
-├── cached-repos.json     # Repo-Cache (fuer schnellen Start)
-├── cached-graph.json     # Dependency-Graph Cache
-├── cascade-history/      # Cascade-Ausfuehrungen
-└── pull-history/         # Pull-All Ausfuehrungen
+├── project.json          # Project configuration + repo mapping
+├── cached-repos.json     # Repo cache (for fast startup)
+├── cached-graph.json     # Dependency graph cache
+├── cascade-history/      # Cascade execution logs
+└── pull-history/         # Pull All execution logs
 ```
 
-## Scripts
+## Development
 
-| Script | Beschreibung |
+For contributors working on RepoHub itself:
+
+```bash
+git clone <repo-url>
+cd repo-maintenance
+pnpm install
+cp .env.example .env     # Adjust if needed
+pnpm dev                 # Backend (3100) + Frontend (3101) concurrently
+```
+
+| Script | Description |
 |--------|-------------|
-| `pnpm dev` | Development (Backend + Frontend) |
-| `pnpm build` | TypeScript + Vite Build |
-| `pnpm start` | Production Server starten |
-| `pnpm test` | Tests mit Coverage |
+| `pnpm dev` | Development (backend + frontend) |
+| `pnpm build` | TypeScript + Vite build |
+| `pnpm start` | Start production server |
+| `pnpm test` | Lint + build + depcheck + tests with coverage |
 | `pnpm lint` | ESLint |
 | `pnpm format` | Prettier |
-| `pnpm depcheck` | Unused Dependencies pruefen |
-
-## Architektur
-
-```
-src/
-├── server/                  # Hono + tRPC Backend (Bun Runtime)
-│   ├── index.ts             # Server Entry Point
-│   ├── services/            # Business Logic
-│   │   ├── repo-scanner.ts           # Scannt repo/ nach Packages
-│   │   ├── dependency-resolver.ts    # Baut Dependency-Graph
-│   │   ├── cascade-service.ts        # Cascade-Update Orchestrierung
-│   │   ├── bulk-service.ts           # Bulk-Command Ausfuehrung
-│   │   ├── git-service.ts            # Git-Operationen (simple-git)
-│   │   ├── pull-all-service.ts       # Pull/Clone aller Repos
-│   │   ├── package-service.ts        # file: URL Management
-│   │   ├── task-queue.ts             # Paralleler Task-Executor
-│   │   └── config-service.ts         # Config + Cache Persistenz
-│   └── trpc/                # tRPC Router + Procedures
-│       ├── router.ts
-│       └── procedures/
-│           ├── project.ts            # Projekt-Konfiguration
-│           ├── repos.ts              # Repo-Liste / Refresh
-│           ├── git.ts                # Git-Operationen
-│           ├── cascade.ts            # Cascade-Updates
-│           ├── bulk.ts               # Bulk-Operationen
-│           ├── dependencies.ts       # Dependency-Graph
-│           └── package.ts            # Package-Management
-├── client/                  # React Frontend
-│   ├── main.tsx             # App Entry Point
-│   ├── App.tsx              # Root-Komponente
-│   ├── trpc.ts              # tRPC Client Setup
-│   └── components/
-│       ├── layout/          # AppLayout, Sidebar, StatusBar
-│       ├── dashboard/       # Dashboard-Ansicht
-│       ├── repo-detail/     # Repository-Detail
-│       ├── graph/           # Dependency-Graph (React Flow)
-│       ├── cascade/         # Cascade Planner & Monitor
-│       ├── bulk/            # Bulk-Operationen
-│       ├── history/         # History-Ansicht
-│       ├── packages/        # File-URL Ansicht
-│       ├── settings/        # Settings + Repo-Mapping Dialog
-│       └── shared/          # Shared Components
-└── shared/                  # Shared Types (Server + Client)
-    └── types.ts
-```
+| `pnpm depcheck` | Check for unused dependencies |
 
 ## Tech Stack
 
-| Komponente | Technologie |
-|------------|-------------|
-| Backend | Bun + Hono + tRPC |
+| Component | Technology |
+|-----------|------------|
+| Backend | Node.js + Hono + tRPC |
 | Frontend | React 19 + Vite + Tailwind CSS 4 |
-| State | TanStack Query (Polling fuer Live-Updates) |
+| State | TanStack Query (polling for live updates) |
 | Graph | React Flow (@xyflow/react) |
 | Git | simple-git |
 | Icons | Lucide React |
+
+## License
+
+MIT

@@ -75,6 +75,9 @@ export const projectRouter = router({
         parallelTasks: z.number().min(1).max(20).optional(),
         defaultBranch: z.string().optional(),
         domainOverrides: z.record(z.string(), z.string()).optional(),
+        quickActions: z
+          .array(z.object({ label: z.string(), command: z.string() }))
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
