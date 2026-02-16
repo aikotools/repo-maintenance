@@ -37,7 +37,7 @@ function computeLayout(
 ): { nodes: Node[]; edges: Edge[] } {
   const NODE_WIDTH = 180
   const NODE_HEIGHT = 36
-  const LAYER_GAP = 80
+  const LAYER_GAP = 100
   const NODE_GAP = 24
 
   // Build repo lookup
@@ -95,21 +95,38 @@ function computeLayout(
     y += NODE_HEIGHT + LAYER_GAP
   }
 
-  // Edges
+  // Build node-to-layer lookup
+  const nodeLayer = new Map<string, number>()
+  for (const entry of layerEntries) {
+    for (const id of entry.ids) {
+      nodeLayer.set(id, entry.layer)
+    }
+  }
+
+  // Edges — pick handles based on relative vertical position so edges don't loop over nodes
   const edges: Edge[] = graph.edges
     .filter((e) => filteredNodeIds.has(e.from) && filteredNodeIds.has(e.to))
-    .map((e) => ({
-      id: `${e.from}->${e.to}`,
-      source: e.from,
-      target: e.to,
-      label: e.versionSpec,
-      labelStyle: { fontSize: 9, fill: '#71717a' },
-      labelBgStyle: { fill: '#0a0a0f', fillOpacity: 0.8 },
-      labelBgPadding: [4, 2] as [number, number],
-      style: { stroke: '#3f3f46', strokeWidth: 1 },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: '#3f3f46' },
-      animated: false,
-    }))
+    .map((e) => {
+      const sourceLayer = nodeLayer.get(e.from) ?? 0
+      const targetLayer = nodeLayer.get(e.to) ?? 0
+      const goingDown = sourceLayer <= targetLayer
+
+      return {
+        id: `${e.from}->${e.to}`,
+        source: e.from,
+        target: e.to,
+        sourceHandle: goingDown ? 'bottom-source' : 'top-source',
+        targetHandle: goingDown ? 'top-target' : 'bottom-target',
+        type: 'default',
+        label: e.versionSpec,
+        labelStyle: { fontSize: 9, fill: '#71717a' },
+        labelBgStyle: { fill: '#0a0a0f', fillOpacity: 0.8 },
+        labelBgPadding: [4, 2] as [number, number],
+        style: { stroke: '#3f3f46', strokeWidth: 1 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: '#3f3f46' },
+        animated: false,
+      }
+    })
 
   return { nodes, edges }
 }

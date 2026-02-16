@@ -52,14 +52,16 @@ function GraphNodeComponent({ data }: NodeProps & { data: RepoNodeData }) {
         data.isDimmed ? 'opacity-20' : 'opacity-100'
       } ${data.isAffected ? 'ring-2 ring-warning/60' : ''} ${data.isFocused ? 'ring-2 ring-primary' : ''}`}
     >
-      <Handle type="target" position={Position.Top} className="!h-1.5 !w-1.5 !border-none !bg-muted-foreground/50" />
+      <Handle id="top-target" type="target" position={Position.Top} className="!h-1.5 !w-1.5 !border-none !bg-muted-foreground/50" />
+      <Handle id="top-source" type="source" position={Position.Top} className="!h-1.5 !w-1.5 !border-none !bg-muted-foreground/50" />
 
       <div className="flex items-center gap-1.5">
         {data.hasUncommitted && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />}
         <span className={`font-medium ${colors.text}`}>{data.label}</span>
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="!h-1.5 !w-1.5 !border-none !bg-muted-foreground/50" />
+      <Handle id="bottom-source" type="source" position={Position.Bottom} className="!h-1.5 !w-1.5 !border-none !bg-muted-foreground/50" />
+      <Handle id="bottom-target" type="target" position={Position.Bottom} className="!h-1.5 !w-1.5 !border-none !bg-muted-foreground/50" />
     </div>
   )
 }
