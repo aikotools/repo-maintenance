@@ -7,16 +7,9 @@ import { z } from 'zod'
 import { publicProcedure, router } from '../init'
 
 export const cascadeRouter = router({
-  /** Build a cascade plan for a source repo */
+  /** Build a cascade plan for a source repo (structure only, options applied at start) */
   plan: publicProcedure
-    .input(
-      z.object({
-        sourceRepoId: z.string(),
-        waitForCi: z.boolean().default(false),
-        runTests: z.boolean().default(false),
-        commitPrefix: z.string().default('deps: '),
-      })
-    )
+    .input(z.object({ sourceRepoId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.dependencyResolver) {
         throw new TRPCError({
@@ -34,12 +27,7 @@ export const cascadeRouter = router({
       return ctx.cascadeService.createPlan(
         input.sourceRepoId,
         ctx.repos,
-        ctx.dependencyResolver,
-        {
-          waitForCi: input.waitForCi,
-          runTests: input.runTests,
-          commitPrefix: input.commitPrefix,
-        }
+        ctx.dependencyResolver
       )
     }),
 

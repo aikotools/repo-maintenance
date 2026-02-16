@@ -25,9 +25,9 @@ export function CascadePlannerDialog({ sourceRepoId, onClose }: CascadePlannerDi
   const [commitPrefix, setCommitPrefix] = useState('deps: ')
   const [commitOverrides, setCommitOverrides] = useState<Record<string, string>>({})
 
-  // Fetch the plan
+  // Fetch the plan (structure only - options are applied at start time)
   const planQuery = trpc.cascade.plan.useQuery(
-    { sourceRepoId, waitForCi, runTests, commitPrefix },
+    { sourceRepoId },
     { enabled: phase === 'plan' }
   )
 
@@ -46,9 +46,7 @@ export function CascadePlannerDialog({ sourceRepoId, onClose }: CascadePlannerDi
       enabled: !!executionId && phase !== 'plan',
       refetchInterval: (data) => {
         const s = data?.status
-        return s === 'completed' || s === 'failed' || s === 'aborted' || s === 'paused'
-          ? false
-          : 2000
+        return s === 'completed' || s === 'failed' || s === 'aborted' ? false : 2000
       },
     }
   )
@@ -64,16 +62,21 @@ export function CascadePlannerDialog({ sourceRepoId, onClose }: CascadePlannerDi
       ? 'done'
       : phase
 
-  // Apply commit message overrides to the plan for display
+  // Apply commit prefix and overrides to the plan for display
+  const defaultPrefix = planQuery.data?.commitPrefix ?? 'deps: '
   const displayPlan: CascadePlan | undefined = planQuery.data
     ? {
         ...planQuery.data,
         layers: planQuery.data.layers.map((layer) => ({
           ...layer,
-          steps: layer.steps.map((step) => ({
-            ...step,
-            commitMessage: commitOverrides[step.repoId] ?? step.commitMessage,
-          })),
+          steps: layer.steps.map((step) => {
+            if (commitOverrides[step.repoId]) return { ...step, commitMessage: commitOverrides[step.repoId] }
+            // Replace default prefix with current prefix
+            const base = step.commitMessage.startsWith(defaultPrefix)
+              ? step.commitMessage.slice(defaultPrefix.length)
+              : step.commitMessage
+            return { ...step, commitMessage: `${commitPrefix}${base}` }
+          }),
         })),
       }
     : undefined

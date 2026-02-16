@@ -8,6 +8,13 @@ import type { BulkExecution, Repo } from '../../shared/types'
 import { spawnProcess } from './process'
 import { TaskQueue } from './task-queue'
 
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?\x07/g
+
+function stripAnsi(text: string): string {
+  return text.replace(ANSI_REGEX, '')
+}
+
 export class BulkService {
   private executions = new Map<string, BulkExecution>()
   private abortControllers = new Map<string, AbortController>()
@@ -171,7 +178,12 @@ export class BulkService {
     const result = await promise
     const duration = Date.now() - startTime
 
-    return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr, duration }
+    return {
+      exitCode: result.exitCode,
+      stdout: stripAnsi(result.stdout),
+      stderr: stripAnsi(result.stderr),
+      duration,
+    }
   }
 
   /**

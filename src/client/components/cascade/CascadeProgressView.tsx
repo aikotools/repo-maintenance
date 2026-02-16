@@ -103,14 +103,24 @@ export function CascadeProgressView({ execution }: CascadeProgressViewProps) {
           </>
         )}
         {isPaused && (
-          <button
-            onClick={() => resumeMutation.mutate({ id: execution.id })}
-            disabled={resumeMutation.isPending}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
-          >
-            <Play className="h-3.5 w-3.5" />
-            Resume
-          </button>
+          <>
+            <button
+              onClick={() => resumeMutation.mutate({ id: execution.id })}
+              disabled={resumeMutation.isPending}
+              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
+            >
+              <Play className="h-3.5 w-3.5" />
+              Resume
+            </button>
+            <button
+              onClick={() => abortMutation.mutate({ id: execution.id })}
+              disabled={abortMutation.isPending}
+              className="flex items-center gap-1.5 rounded-md border border-destructive/50 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"
+            >
+              <Square className="h-3.5 w-3.5" />
+              Abort
+            </button>
+          </>
         )}
       </div>
 

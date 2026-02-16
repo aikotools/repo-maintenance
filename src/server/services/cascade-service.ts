@@ -47,7 +47,7 @@ export class CascadeService {
     sourceRepoId: string,
     repos: Repo[],
     resolver: DependencyResolver,
-    options: CascadePlanOptions
+    options?: CascadePlanOptions
   ): Promise<CascadePlan> {
     const affected = resolver.getAffected(sourceRepoId)
     const repoMap = new Map(repos.map((r) => [r.id, r]))
@@ -100,7 +100,8 @@ export class CascadeService {
         }
 
         const depNames = depsToUpdate.map((d) => d.npmName.split('/').pop()).join(', ')
-        const commitMessage = `${options.commitPrefix}update ${depNames || repoId}`
+        const prefix = options?.commitPrefix ?? 'deps: '
+        const commitMessage = `${prefix}update ${depNames || repoId}`
 
         return {
           repoId,
@@ -131,9 +132,9 @@ export class CascadeService {
       sourceCommitMessage: `Source: ${sourceRepoId} v${sourceVersion}`,
       layers,
       totalRepos: affected.totalCount,
-      waitForCi: options.waitForCi,
-      runTests: options.runTests,
-      commitPrefix: options.commitPrefix,
+      waitForCi: options?.waitForCi ?? false,
+      runTests: options?.runTests ?? false,
+      commitPrefix: options?.commitPrefix ?? 'deps: ',
     }
   }
 
@@ -186,8 +187,15 @@ export class CascadeService {
 
   abort(id: string): boolean {
     const exec = this.executions.get(id)
-    if (!exec || exec.status !== 'running') return false
+    if (!exec || (exec.status !== 'running' && exec.status !== 'paused')) return false
     this.abortSignals.set(id, true)
+    if (exec.status === 'paused') {
+      exec.status = 'aborted'
+      exec.completedAt = new Date().toISOString()
+      this.saveToHistory(exec).catch((err) => {
+        console.error('[Cascade] Failed to save history on abort:', err)
+      })
+    }
     return true
   }
 

@@ -12,9 +12,18 @@ interface DomainGroupProps {
   repos: Repo[]
   selectedRepoId: string | null
   onSelectRepo: (id: string) => void
+  knownLeafRepos: Set<string>
+  onToggleKnownLeaf: (repoId: string) => void
 }
 
-export function DomainGroup({ domain, repos, selectedRepoId, onSelectRepo }: DomainGroupProps) {
+export function DomainGroup({
+  domain,
+  repos,
+  selectedRepoId,
+  onSelectRepo,
+  knownLeafRepos,
+  onToggleKnownLeaf,
+}: DomainGroupProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   // Auto-expand if selected repo is in this domain
@@ -63,6 +72,8 @@ export function DomainGroup({ domain, repos, selectedRepoId, onSelectRepo }: Dom
               repo={repo}
               isSelected={repo.id === selectedRepoId}
               onSelect={onSelectRepo}
+              knownLeafRepos={knownLeafRepos}
+              onToggleKnownLeaf={onToggleKnownLeaf}
             />
           ))}
 
@@ -73,6 +84,8 @@ export function DomainGroup({ domain, repos, selectedRepoId, onSelectRepo }: Dom
               repos={subRepos}
               selectedRepoId={selectedRepoId}
               onSelectRepo={onSelectRepo}
+              knownLeafRepos={knownLeafRepos}
+              onToggleKnownLeaf={onToggleKnownLeaf}
             />
           ))}
         </div>
@@ -86,11 +99,15 @@ function SubGroupSection({
   repos,
   selectedRepoId,
   onSelectRepo,
+  knownLeafRepos,
+  onToggleKnownLeaf,
 }: {
   name: string
   repos: Repo[]
   selectedRepoId: string | null
   onSelectRepo: (id: string) => void
+  knownLeafRepos: Set<string>
+  onToggleKnownLeaf: (repoId: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const hasSelection = repos.some((r) => r.id === selectedRepoId)
@@ -119,6 +136,8 @@ function SubGroupSection({
               repo={repo}
               isSelected={repo.id === selectedRepoId}
               onSelect={onSelectRepo}
+              knownLeafRepos={knownLeafRepos}
+              onToggleKnownLeaf={onToggleKnownLeaf}
             />
           ))}
         </div>

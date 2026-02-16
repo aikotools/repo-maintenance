@@ -149,6 +149,8 @@ export interface ProjectConfig {
   ignoreRepos?: string[]
   /** Configurable quick actions for bulk operations */
   quickActions?: QuickAction[]
+  /** Repo IDs acknowledged as intentional leaf repos (no dependents) */
+  knownLeafRepos?: string[]
 }
 
 /** Dashboard statistics */

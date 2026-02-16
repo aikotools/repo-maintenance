@@ -78,6 +78,7 @@ export const projectRouter = router({
         quickActions: z
           .array(z.object({ label: z.string(), command: z.string() }))
           .optional(),
+        knownLeafRepos: z.array(z.string()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -93,6 +94,22 @@ export const projectRouter = router({
       reinitializeContext(ctx, updated)
 
       return updated
+    }),
+
+  toggleKnownLeaf: publicProcedure
+    .input(z.object({ repoId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const config = await ctx.configService.getProjectConfig()
+      const list = config.knownLeafRepos || []
+      const idx = list.indexOf(input.repoId)
+      if (idx >= 0) {
+        list.splice(idx, 1)
+      } else {
+        list.push(input.repoId)
+      }
+      config.knownLeafRepos = list
+      await ctx.configService.saveProjectConfig(config)
+      return { isKnown: idx < 0 }
     }),
 
   importMapping: publicProcedure

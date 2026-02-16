@@ -5,6 +5,7 @@
 
 import { useMemo, useState } from 'react'
 import type { Domain, Repo } from '../../../shared/types'
+import { trpc } from '../../trpc'
 import { DomainGroup } from './DomainGroup'
 import { TreeFilter } from './TreeFilter'
 
@@ -18,6 +19,23 @@ interface RepoTreeProps {
 export function RepoTree({ repos, domains, selectedRepoId, onSelectRepo }: RepoTreeProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [showOnlyUncommitted, setShowOnlyUncommitted] = useState(false)
+  const [showOnlyFileUrl, setShowOnlyFileUrl] = useState(false)
+  const [showOnlyLeaves, setShowOnlyLeaves] = useState(false)
+
+  const projectQuery = trpc.project.get.useQuery()
+  const knownLeafRepos = useMemo(
+    () => new Set(projectQuery.data?.knownLeafRepos || []),
+    [projectQuery.data?.knownLeafRepos]
+  )
+
+  const utils = trpc.useUtils()
+  const toggleKnownLeafMutation = trpc.project.toggleKnownLeaf.useMutation({
+    onSuccess: () => utils.project.get.invalidate(),
+  })
+
+  const handleToggleKnownLeaf = (repoId: string) => {
+    toggleKnownLeafMutation.mutate({ repoId })
+  }
 
   const filteredRepos = useMemo(() => {
     let filtered = repos
@@ -36,8 +54,18 @@ export function RepoTree({ repos, domains, selectedRepoId, onSelectRepo }: RepoT
       filtered = filtered.filter((r) => r.gitStatus?.hasUncommittedChanges)
     }
 
+    if (showOnlyFileUrl) {
+      filtered = filtered.filter((r) =>
+        r.dependencies.some((d) => d.versionSpec.startsWith('file:'))
+      )
+    }
+
+    if (showOnlyLeaves) {
+      filtered = filtered.filter((r) => r.dependents.length === 0)
+    }
+
     return filtered
-  }, [repos, searchTerm, showOnlyUncommitted])
+  }, [repos, searchTerm, showOnlyUncommitted, showOnlyFileUrl, showOnlyLeaves])
 
   // Group by domain
   const reposByDomain = useMemo(() => {
@@ -60,6 +88,10 @@ export function RepoTree({ repos, domains, selectedRepoId, onSelectRepo }: RepoT
         onSearchChange={setSearchTerm}
         showOnlyUncommitted={showOnlyUncommitted}
         onToggleUncommitted={() => setShowOnlyUncommitted(!showOnlyUncommitted)}
+        showOnlyFileUrl={showOnlyFileUrl}
+        onToggleFileUrl={() => setShowOnlyFileUrl(!showOnlyFileUrl)}
+        showOnlyLeaves={showOnlyLeaves}
+        onToggleLeaves={() => setShowOnlyLeaves(!showOnlyLeaves)}
       />
 
       <div className="scrollbar-thin flex-1 overflow-y-auto px-1 pb-2">
@@ -77,6 +109,8 @@ export function RepoTree({ repos, domains, selectedRepoId, onSelectRepo }: RepoT
               repos={reposByDomain.get(domain.id) || []}
               selectedRepoId={selectedRepoId}
               onSelectRepo={onSelectRepo}
+              knownLeafRepos={knownLeafRepos}
+              onToggleKnownLeaf={handleToggleKnownLeaf}
             />
           ))
         )}

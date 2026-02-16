@@ -11,6 +11,7 @@ import { CommitDialog } from './CommitDialog'
 import { DependenciesList } from './DependenciesList'
 import { DependentsList } from './DependentsList'
 import { DiffViewer } from './DiffViewer'
+import { RepoCommandRunner } from './RepoCommandRunner'
 import { RepoInfo } from './RepoInfo'
 
 type Tab = 'changes' | 'dependencies' | 'dependents'
@@ -205,6 +206,9 @@ export function RepoDetail({ repo, allRepos, onSelectRepo, onStartCascade }: Rep
           }}
         />
       )}
+
+      {/* Command runner */}
+      <RepoCommandRunner repo={repo} />
 
       {/* Recent commits */}
       {repo.gitStatus && repo.gitStatus.recentCommits.length > 0 && (

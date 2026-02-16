@@ -2,12 +2,15 @@
  * A single repo node in the sidebar tree.
  */
 
+import { Check, Leaf } from 'lucide-react'
 import type { Repo } from '../../../shared/types'
 
 interface RepoNodeProps {
   repo: Repo
   isSelected: boolean
   onSelect: (id: string) => void
+  knownLeafRepos: Set<string>
+  onToggleKnownLeaf: (repoId: string) => void
 }
 
 function statusDot(repo: Repo) {
@@ -43,8 +46,17 @@ function typeLabel(type: string) {
   }
 }
 
-export function RepoNode({ repo, isSelected, onSelect }: RepoNodeProps) {
+export function RepoNode({
+  repo,
+  isSelected,
+  onSelect,
+  knownLeafRepos,
+  onToggleKnownLeaf,
+}: RepoNodeProps) {
   const affectedCount = repo.dependents.length
+  const hasFileUrlDeps = repo.dependencies.some((d) => d.versionSpec.startsWith('file:'))
+  const isLeaf = repo.dependents.length === 0
+  const isKnownLeaf = knownLeafRepos.has(repo.id)
 
   return (
     <button
@@ -60,6 +72,30 @@ export function RepoNode({ repo, isSelected, onSelect }: RepoNodeProps) {
       {repo.gitStatus?.hasUncommittedChanges && affectedCount > 0 && (
         <span className="flex-shrink-0 rounded bg-warning/20 px-1 text-[10px] text-warning">
           {affectedCount}
+        </span>
+      )}
+      {hasFileUrlDeps && (
+        <span
+          className="flex-shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] font-semibold text-yellow-500"
+          title="Has file: URL dependencies"
+        >
+          F
+        </span>
+      )}
+      {isLeaf && (
+        <span
+          className="flex-shrink-0 cursor-pointer"
+          title={isKnownLeaf ? 'Known leaf repo (click to unmark)' : 'Leaf repo (click to mark as known)'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleKnownLeaf(repo.id)
+          }}
+        >
+          {isKnownLeaf ? (
+            <Check className="h-3 w-3 text-muted-foreground/50" />
+          ) : (
+            <Leaf className="h-3 w-3 text-yellow-500" />
+          )}
         </span>
       )}
       <span className="flex-shrink-0 text-[10px] text-muted-foreground">
