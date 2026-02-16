@@ -107,7 +107,7 @@ app.all('/trpc/*', async (c) => {
 // Serve static files from dist/client in production
 const clientDir = path.join(packageRoot, 'dist/client')
 if (existsSync(clientDir)) {
-  app.use('/*', serveStatic({ root: './dist/client' }))
+  app.use('/*', serveStatic({ root: clientDir }))
 
   // SPA fallback: serve index.html for non-API routes
   app.get('*', async (c) => {
