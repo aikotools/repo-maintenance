@@ -2,7 +2,7 @@
  * Main application layout with sidebar, content area, and status bar.
  */
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { trpc } from '../../trpc'
 import { useSelectedRepo } from '../../hooks/useSelectedRepo'
@@ -30,6 +30,44 @@ export function AppLayout() {
   const [showSettings, setShowSettings] = useState(false)
   const [mainView, setMainView] = useState<MainView>('dashboard')
   const [cascadeSourceRepoId, setCascadeSourceRepoId] = useState<string | null>(null)
+
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = localStorage.getItem('repohub-sidebar-width')
+    return stored ? Number(stored) : 256
+  })
+  const isDragging = useRef(false)
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging.current) return
+    const clamped = Math.min(480, Math.max(200, e.clientX))
+    setSidebarWidth(clamped)
+  }, [])
+
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    setSidebarWidth((w) => {
+      localStorage.setItem('repohub-sidebar-width', String(w))
+      return w
+    })
+  }, [])
+
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [handleMouseMove, handleMouseUp])
+
+  function handleResizeStart() {
+    isDragging.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
 
   // Fetch repos
   const reposQuery = trpc.repos.list.useQuery()
@@ -137,6 +175,13 @@ export function AppLayout() {
           isRefreshing={refreshMutation.isPending}
           isRefreshingGit={gitStatusMutation.isPending}
           activeView={mainView}
+          width={sidebarWidth}
+        />
+
+        {/* Resize handle */}
+        <div
+          onMouseDown={handleResizeStart}
+          className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/30 active:bg-primary/50"
         />
 
         {/* Main content */}

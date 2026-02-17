@@ -42,6 +42,7 @@ interface SidebarProps {
   isRefreshing: boolean
   isRefreshingGit: boolean
   activeView: string
+  width: number
 }
 
 export function Sidebar({
@@ -65,9 +66,10 @@ export function Sidebar({
   isRefreshing,
   isRefreshingGit,
   activeView,
+  width,
 }: SidebarProps) {
   return (
-    <div className="flex h-full w-64 flex-col border-r border-border bg-sidebar-bg">
+    <div className="flex h-full shrink-0 flex-col border-r border-border bg-sidebar-bg" style={{ width }}>
       {/* Header: Title + Project Switcher */}
       <div className="flex items-center justify-between border-b border-sidebar-border px-3 py-2">
         <div className="flex items-center gap-1.5">
