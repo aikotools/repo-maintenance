@@ -142,6 +142,7 @@ export class RepoScanner {
       const allDeps = {
         ...pkg.dependencies,
         ...pkg.peerDependencies,
+        ...pkg.devDependencies,
       }
       const internalDeps = this.filterInternalDeps(allDeps)
 
