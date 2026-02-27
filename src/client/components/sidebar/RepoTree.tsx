@@ -82,7 +82,7 @@ export function RepoTree({ repos, domains, selectedRepoId, onSelectRepo }: RepoT
   const visibleDomains = domains.filter((d) => reposByDomain.has(d.id))
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <TreeFilter
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -94,7 +94,7 @@ export function RepoTree({ repos, domains, selectedRepoId, onSelectRepo }: RepoT
         onToggleLeaves={() => setShowOnlyLeaves(!showOnlyLeaves)}
       />
 
-      <div className="scrollbar-thin flex-1 overflow-y-auto px-1 pb-2">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-1 pb-2">
         {visibleDomains.length === 0 ? (
           <div className="px-2 py-4 text-center text-xs text-muted-foreground">
             {repos.length === 0
