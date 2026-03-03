@@ -44,8 +44,8 @@ export function CascadePlannerDialog({ sourceRepoId, onClose }: CascadePlannerDi
     { id: executionId! },
     {
       enabled: !!executionId && phase !== 'plan',
-      refetchInterval: (data) => {
-        const s = data?.status
+      refetchInterval: (query) => {
+        const s = query.state.data?.status
         return s === 'completed' || s === 'failed' || s === 'aborted' ? false : 2000
       },
     }
@@ -70,7 +70,8 @@ export function CascadePlannerDialog({ sourceRepoId, onClose }: CascadePlannerDi
         layers: planQuery.data.layers.map((layer) => ({
           ...layer,
           steps: layer.steps.map((step) => {
-            if (commitOverrides[step.repoId]) return { ...step, commitMessage: commitOverrides[step.repoId] }
+            const override = commitOverrides[step.repoId]
+            if (override) return { ...step, commitMessage: override }
             // Replace default prefix with current prefix
             const base = step.commitMessage.startsWith(defaultPrefix)
               ? step.commitMessage.slice(defaultPrefix.length)

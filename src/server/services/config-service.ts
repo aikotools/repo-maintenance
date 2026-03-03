@@ -30,6 +30,7 @@ const DEFAULT_CONFIG: ProjectConfig = {
     { label: 'pnpm build', command: 'pnpm build' },
     { label: 'git pull', command: 'git pull' },
   ],
+  gitProtocol: 'ssh',
 }
 
 const DEFAULT_GLOBAL: GlobalConfig = {

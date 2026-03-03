@@ -291,7 +291,8 @@ export class PullAllService {
           const cloneResult = await this.cloneRepo(
             org,
             item.name,
-            path.join(config.rootFolder, item.targetDir!, item.name)
+            path.join(config.rootFolder, item.targetDir!, item.name),
+            config.gitProtocol || 'ssh'
           )
           result.success = cloneResult.success
           result.message = cloneResult.message
@@ -399,27 +400,34 @@ export class PullAllService {
 
   /**
    * Clone a repo from GitHub into the target path.
+   * Supports both SSH and HTTPS protocols based on gitProtocol config.
    */
   private async cloneRepo(
     org: string,
     name: string,
-    targetPath: string
+    targetPath: string,
+    protocol: 'ssh' | 'https' = 'ssh'
   ): Promise<{ success: boolean; message: string }> {
     // If target already exists with .git, treat as already cloned
     if (existsSync(path.join(targetPath, '.git'))) {
       return { success: true, message: 'Already exists locally' }
     }
 
+    const url =
+      protocol === 'https'
+        ? `https://github.com/${org}/${name}.git`
+        : `git@github.com:${org}/${name}.git`
+
     const { promise } = spawnProcess([
-      'gh', 'repo', 'clone', `${org}/${name}`, targetPath, '--', '--quiet',
+      'git', 'clone', url, targetPath, '--quiet',
     ])
     const result = await promise
 
     if (result.exitCode !== 0) {
-      return { success: false, message: `Clone failed: ${result.stderr.trim()}` }
+      return { success: false, message: `Clone failed (${protocol}): ${result.stderr.trim()}` }
     }
 
-    return { success: true, message: 'Cloned successfully' }
+    return { success: true, message: `Cloned successfully (${protocol})` }
   }
 
   /**

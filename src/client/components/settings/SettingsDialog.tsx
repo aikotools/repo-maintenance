@@ -94,6 +94,9 @@ function SettingsForm({
   const [npmRegistry, setNpmRegistry] = useState(
     initialData.npmRegistry || 'https://npm.pkg.github.com'
   )
+  const [gitProtocol, setGitProtocol] = useState<'ssh' | 'https'>(
+    initialData.gitProtocol || 'ssh'
+  )
   const [quickActions, setQuickActions] = useState<QuickAction[]>(
     initialData.quickActions ?? [
       { label: 'pnpm install', command: 'pnpm install' },
@@ -118,6 +121,7 @@ function SettingsForm({
         .map((s) => s.trim())
         .filter(Boolean),
       npmRegistry: npmRegistry.trim() || 'https://npm.pkg.github.com',
+      gitProtocol,
       quickActions: quickActions.filter((a) => a.label.trim() && a.command.trim()),
     })
   }
@@ -241,6 +245,21 @@ function SettingsForm({
         />
       </div>
 
+      {/* Git Protocol */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Git Clone Protocol
+        </label>
+        <select
+          value={gitProtocol}
+          onChange={(e) => setGitProtocol(e.target.value as 'ssh' | 'https')}
+          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+        >
+          <option value="ssh">SSH (git@github.com:org/repo.git)</option>
+          <option value="https">HTTPS (https://github.com/org/repo.git)</option>
+        </select>
+      </div>
+
       {/* Quick Actions */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -254,7 +273,7 @@ function SettingsForm({
                 value={action.label}
                 onChange={(e) => {
                   const next = [...quickActions]
-                  next[i] = { ...next[i], label: e.target.value }
+                  next[i] = { ...action, label: e.target.value }
                   setQuickActions(next)
                 }}
                 placeholder="Label"
@@ -265,7 +284,7 @@ function SettingsForm({
                 value={action.command}
                 onChange={(e) => {
                   const next = [...quickActions]
-                  next[i] = { ...next[i], command: e.target.value }
+                  next[i] = { ...action, command: e.target.value }
                   setQuickActions(next)
                 }}
                 placeholder="Command"

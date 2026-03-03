@@ -41,8 +41,8 @@ export function BulkOperations({ repos }: BulkOperationsProps) {
     { id: executionId! },
     {
       enabled: !!executionId && phase !== 'configure',
-      refetchInterval: (data) => {
-        const s = data?.status
+      refetchInterval: (query) => {
+        const s = query.state.data?.status
         return s === 'completed' || s === 'failed' || s === 'aborted' ? false : 2000
       },
     }

@@ -35,8 +35,8 @@ export function RepoCommandRunner({ repo }: RepoCommandRunnerProps) {
     { id: executionId! },
     {
       enabled: !!executionId && phase !== 'idle',
-      refetchInterval: (data) => {
-        const s = data?.status
+      refetchInterval: (query) => {
+        const s = query.state.data?.status
         return s === 'completed' || s === 'failed' || s === 'aborted' ? false : 2000
       },
     }

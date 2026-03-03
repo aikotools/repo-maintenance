@@ -79,6 +79,7 @@ export const projectRouter = router({
           .array(z.object({ label: z.string(), command: z.string() }))
           .optional(),
         knownLeafRepos: z.array(z.string()).optional(),
+        gitProtocol: z.enum(['ssh', 'https']).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

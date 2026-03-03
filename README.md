@@ -150,6 +150,26 @@ NPM_REGISTRY=https://npm.pkg.github.com # npm registry (for Cascade version reso
 
 Configured via the Settings dialog (gear icon) in the UI. Persisted in `.repoMaintenance/project.json`.
 
+| Setting | Description | Default |
+|---------|-------------|---------|
+| **Project Name** | Label for your monorepo | — |
+| **Root Folder** | Path containing all repos | — |
+| **Parallel Tasks** | Concurrency for bulk/pull operations (1–20) | `6` |
+| **Default Branch** | Branch used for pull fallback | `main` |
+| **npm Organizations** | Scoped packages detected as internal deps | — |
+| **GitHub Organizations** | Used by Pull All to list/clone repos | — |
+| **npm Registry URL** | Registry for version resolution | `https://npm.pkg.github.com` |
+| **Git Clone Protocol** | Protocol for cloning repos: `ssh` or `https` | `ssh` |
+| **Quick Actions** | Configurable commands for bulk operations | `pnpm install`, `pnpm test`, `pnpm build`, `git pull` |
+| **Repo Mapping** | Assigns GitHub repos to local domain folders | Auto-generated on refresh |
+
+#### Git Clone Protocol
+
+Controls how new repos are cloned during **Pull All**:
+
+- **SSH** (default): `git@github.com:org/repo.git` — requires SSH key configured with GitHub
+- **HTTPS**: `https://github.com/org/repo.git` — requires a credential helper (e.g. `gh auth setup-git`)
+
 ### Data Storage
 
 ```

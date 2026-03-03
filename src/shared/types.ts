@@ -151,6 +151,8 @@ export interface ProjectConfig {
   quickActions?: QuickAction[]
   /** Repo IDs acknowledged as intentional leaf repos (no dependents) */
   knownLeafRepos?: string[]
+  /** Git protocol for cloning repos: 'ssh' (default) or 'https' */
+  gitProtocol?: 'ssh' | 'https'
 }
 
 /** Dashboard statistics */
