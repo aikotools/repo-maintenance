@@ -10,6 +10,7 @@ import type { ConfigService } from '../services/config-service'
 import type { DependencyResolver } from '../services/dependency-resolver'
 import type { GitService } from '../services/git-service'
 import type { PackageService } from '../services/package-service'
+import type { GitAuthService } from '../services/git-auth-service'
 import type { PullAllService } from '../services/pull-all-service'
 import type { RepoScanner } from '../services/repo-scanner'
 
@@ -17,6 +18,7 @@ export interface AppContext {
   configService: ConfigService
   scanner: RepoScanner
   gitService: GitService
+  gitAuthService: GitAuthService
   repos: Repo[]
   domains: Domain[]
   dependencyResolver: DependencyResolver | null

@@ -20,6 +20,7 @@ import { CascadeService } from './services/cascade-service'
 import { ConfigService } from './services/config-service'
 import { GitService } from './services/git-service'
 import { PackageService } from './services/package-service'
+import { GitAuthService } from './services/git-auth-service'
 import { PullAllService } from './services/pull-all-service'
 import { RepoScanner } from './services/repo-scanner'
 import type { AppContext } from './trpc/context'
@@ -55,7 +56,8 @@ const scanner = new RepoScanner(rootFolder, config.npmOrganizations)
 const gitService = new GitService(config.parallelTasks)
 const cascadeService = new CascadeService(configService, config.parallelTasks)
 const bulkService = new BulkService(config.parallelTasks)
-const pullAllService = new PullAllService(config.parallelTasks, configService)
+const gitAuthService = new GitAuthService()
+const pullAllService = new PullAllService(config.parallelTasks, configService, gitAuthService)
 const packageService = new PackageService(rootFolder, config.npmOrganizations)
 
 // Create shared app context (mutable, updated on refresh)
@@ -63,6 +65,7 @@ const appContext: AppContext = {
   configService,
   scanner,
   gitService,
+  gitAuthService,
   repos: [],
   domains: [],
   dependencyResolver: null,

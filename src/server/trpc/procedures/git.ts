@@ -178,4 +178,27 @@ export const gitRouter = router({
     .query(async ({ ctx, input }) => {
       return ctx.configService.getPullAllHistory(input?.limit ?? 20)
     }),
+
+  /** Check HTTPS git authentication status. */
+  checkGitAuth: publicProcedure.query(async ({ ctx }) => {
+    const config = await ctx.configService.getProjectConfig()
+    if (config.gitProtocol !== 'https') {
+      return { ok: true, method: 'ssh' as const }
+    }
+    return ctx.gitAuthService.checkAuth()
+  }),
+
+  /** Store a GitHub PAT in the system keychain. */
+  saveGitToken: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.gitAuthService.storeToken(input.token)
+      return { success: true }
+    }),
+
+  /** Delete the stored GitHub PAT from the system keychain. */
+  deleteGitToken: publicProcedure.mutation(async ({ ctx }) => {
+    await ctx.gitAuthService.deleteToken()
+    return { success: true }
+  }),
 })

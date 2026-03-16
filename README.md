@@ -29,7 +29,7 @@ npm install -g @aikotools/repo-maintenance
    - **Project Name** — a label for your monorepo
    - **Root Folder** — path to the directory containing all your repos
    - **npm Organizations** — scoped packages to detect as internal deps (e.g. `@myorg`)
-   - **GitHub Organizations** — for Pull All operations (e.g. `myorg`)
+   - **GitHub Organizations** *(required)* — for Pull All operations (e.g. `myorg`)
    - **Parallel Tasks** (1–20, default: 6)
    - **Default Branch** (e.g. `main`)
 4. Click **"Refresh repo structure"** to scan your repos
@@ -157,11 +157,42 @@ Configured via the Settings dialog (gear icon) in the UI. Persisted in `.repoMai
 | **Parallel Tasks** | Concurrency for bulk/pull operations (1–20) | `6` |
 | **Default Branch** | Branch used for pull fallback | `main` |
 | **npm Organizations** | Scoped packages detected as internal deps | — |
-| **GitHub Organizations** | Used by Pull All to list/clone repos | — |
+| **GitHub Organizations** *(required)* | Used by Pull All to list/clone repos | — |
 | **npm Registry URL** | Registry for version resolution | `https://npm.pkg.github.com` |
 | **Git Clone Protocol** | Protocol for cloning repos: `ssh` or `https` | `ssh` |
 | **Quick Actions** | Configurable commands for bulk operations | `pnpm install`, `pnpm test`, `pnpm build`, `git pull` |
 | **Repo Mapping** | Assigns GitHub repos to local domain folders | Auto-generated on refresh |
+
+#### Directory Structure
+
+The scanner supports two directory layouts:
+
+**Hierarchical** (domain folders containing repos):
+
+```
+rootFolder/
+├── core/
+│   ├── kernel/          ← repo with package.json
+│   └── kernel-plugin/   ← repo with package.json
+├── invoice/
+│   ├── lib-invoice-common/
+│   └── outbound/        ← known sub-group
+│       └── lib-invoice-outbound-de/
+└── apps/
+    └── invoice/
+        └── saas-invoice-backend/
+```
+
+**Flat** (repos directly in root folder):
+
+```
+rootFolder/
+├── lib-accounting-export-abacus/   ← repo with package.json
+├── lib-accounting-export-bexio/    ← repo with package.json
+└── lib-accounting-export-bmd/      ← repo with package.json
+```
+
+Both layouts are auto-detected. A directory is recognized as a repo if it contains a `package.json` with a `name` field. The repo mapping is auto-generated on refresh — flat repos map to `"."` (root), hierarchical repos map to their domain folder.
 
 #### Git Clone Protocol
 

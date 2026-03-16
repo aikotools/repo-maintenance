@@ -10,6 +10,7 @@ import path from 'path'
 import simpleGit from 'simple-git'
 import type { PullAllExecution, ProjectConfig, Repo } from '../../shared/types'
 import type { ConfigService } from './config-service'
+import type { GitAuthService } from './git-auth-service'
 import { spawnProcess } from './process'
 import { TaskQueue } from './task-queue'
 
@@ -29,7 +30,8 @@ export class PullAllService {
 
   constructor(
     private defaultConcurrency: number,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private gitAuthService: GitAuthService
   ) {}
 
   /**
@@ -132,8 +134,10 @@ export class PullAllService {
 
     const hasMappingNow =
       effectiveConfig.repoMapping && Object.keys(effectiveConfig.repoMapping).length > 0
+    const hasGitHubOrg =
+      effectiveConfig.githubOrganizations && effectiveConfig.githubOrganizations.length > 0
 
-    if (hasMappingNow) {
+    if (hasMappingNow || hasGitHubOrg) {
       await this.executeWithGitHub(executionId, repos, effectiveConfig, signal)
     } else {
       // Fallback: only pull locally known repos (old behavior)
@@ -196,20 +200,24 @@ export class PullAllService {
     }
 
     // 3. Build execution items from GitHub repos
+    const hasMapping = config.repoMapping && Object.keys(config.repoMapping).length > 0
     const items: ExecutionItem[] = []
     for (const ghRepo of githubRepos) {
       if (config.ignoreRepos?.includes(ghRepo)) {
         items.push({ name: ghRepo, action: 'skip' })
-      } else if (!config.repoMapping?.[ghRepo]) {
-        items.push({ name: ghRepo, action: 'unmapped' })
       } else if (localMap.has(ghRepo)) {
         items.push({ name: ghRepo, action: 'pull', repo: localMap.get(ghRepo)! })
-      } else {
+      } else if (config.repoMapping?.[ghRepo]) {
         items.push({
           name: ghRepo,
           action: 'clone',
           targetDir: config.repoMapping[ghRepo],
         })
+      } else if (!hasMapping) {
+        // No mapping configured at all — clone into root folder (flat structure)
+        items.push({ name: ghRepo, action: 'clone', targetDir: '.' })
+      } else {
+        items.push({ name: ghRepo, action: 'unmapped' })
       }
     }
 
@@ -401,6 +409,7 @@ export class PullAllService {
   /**
    * Clone a repo from GitHub into the target path.
    * Supports both SSH and HTTPS protocols based on gitProtocol config.
+   * For HTTPS, uses authenticated URL from GitAuthService.
    */
   private async cloneRepo(
     org: string,
@@ -415,16 +424,32 @@ export class PullAllService {
 
     const url =
       protocol === 'https'
-        ? `https://github.com/${org}/${name}.git`
+        ? await this.gitAuthService.buildAuthUrl(org, name)
         : `git@github.com:${org}/${name}.git`
 
-    const { promise } = spawnProcess([
-      'git', 'clone', url, targetPath, '--quiet',
-    ])
+    const env = this.gitAuthService.getGitEnv()
+
+    const { promise } = spawnProcess(
+      ['git', 'clone', url, targetPath, '--quiet'],
+      { env }
+    )
     const result = await promise
 
     if (result.exitCode !== 0) {
-      return { success: false, message: `Clone failed (${protocol}): ${result.stderr.trim()}` }
+      // Sanitize error message — never expose tokens
+      const stderr = result.stderr.replace(/x-access-token:[^@]+@/, 'x-access-token:***@')
+      return { success: false, message: `Clone failed (${protocol}): ${stderr.trim()}` }
+    }
+
+    // Replace authenticated remote URL with plain URL (don't persist tokens in .git/config)
+    if (protocol === 'https') {
+      const plainUrl = `https://github.com/${org}/${name}.git`
+      try {
+        const git = simpleGit(targetPath)
+        await git.remote(['set-url', 'origin', plainUrl])
+      } catch {
+        // Non-critical — clone succeeded
+      }
     }
 
     return { success: true, message: `Cloned successfully (${protocol})` }
@@ -438,7 +463,8 @@ export class PullAllService {
     repoPath: string,
     defaultBranch: string
   ): Promise<{ success: boolean; message: string; changes: number }> {
-    const git = simpleGit(repoPath)
+    const env = this.gitAuthService.getGitEnv()
+    const git = simpleGit(repoPath).env(env)
 
     try {
       const result = await git.pull()

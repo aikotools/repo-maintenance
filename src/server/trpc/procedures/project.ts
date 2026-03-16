@@ -10,6 +10,7 @@ import { BulkService } from '../../services/bulk-service'
 import { CascadeService } from '../../services/cascade-service'
 import { DependencyResolver } from '../../services/dependency-resolver'
 import { GitService } from '../../services/git-service'
+import { GitAuthService } from '../../services/git-auth-service'
 import { PackageService } from '../../services/package-service'
 import { PullAllService } from '../../services/pull-all-service'
 import { RepoScanner } from '../../services/repo-scanner'
@@ -23,7 +24,8 @@ function reinitializeContext(ctx: AppContext, config: { rootFolder?: string; npm
   ctx.gitService = new GitService(config.parallelTasks || 6)
   ctx.cascadeService = new CascadeService(ctx.configService, config.parallelTasks || 6)
   ctx.bulkService = new BulkService(config.parallelTasks || 6)
-  ctx.pullAllService = new PullAllService(config.parallelTasks || 6, ctx.configService)
+  ctx.gitAuthService = new GitAuthService()
+  ctx.pullAllService = new PullAllService(config.parallelTasks || 6, ctx.configService, ctx.gitAuthService)
   ctx.packageService = new PackageService(rootFolder, config.npmOrganizations || [])
   ctx.repos = []
   ctx.domains = []

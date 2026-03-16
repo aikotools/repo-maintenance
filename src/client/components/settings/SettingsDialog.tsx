@@ -106,7 +106,10 @@ function SettingsForm({
     ]
   )
 
+  const githubOrgsMissing = !githubOrganizations.trim()
+
   function handleSave() {
+    if (githubOrgsMissing) return
     updateMutation.mutate({
       name,
       rootFolder,
@@ -220,15 +223,24 @@ function SettingsForm({
       {/* GitHub Organizations */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          GitHub Organizations (comma-separated)
+          GitHub Organizations (comma-separated) <span className="text-destructive">*</span>
         </label>
         <input
           type="text"
           value={githubOrganizations}
           onChange={(e) => setGithubOrganizations(e.target.value)}
           placeholder="xhubio"
-          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+          className={`w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none ${
+            githubOrgsMissing
+              ? 'border-destructive focus:border-destructive'
+              : 'border-border focus:border-primary'
+          }`}
         />
+        {githubOrgsMissing && (
+          <p className="mt-1 text-xs text-destructive">
+            At least one GitHub organization is required for pull operations.
+          </p>
+        )}
       </div>
 
       {/* npm Registry */}
@@ -385,7 +397,7 @@ function SettingsForm({
         </button>
         <button
           onClick={handleSave}
-          disabled={isSaving}
+          disabled={isSaving || githubOrgsMissing}
           className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {isSaving ? 'Saving...' : 'Save'}

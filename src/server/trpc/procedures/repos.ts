@@ -31,7 +31,12 @@ export const reposRouter = router({
     // Auto-build repoMapping from scanned directory structure
     const repoMapping: Record<string, string> = {}
     for (const repo of repos) {
-      const domainPath = repo.subGroup ? `${repo.domain}/${repo.subGroup}` : repo.domain
+      // Flat repos (domain === repo id) map to "." so clone goes to rootFolder/repoName
+      const domainPath = repo.subGroup
+        ? `${repo.domain}/${repo.subGroup}`
+        : repo.domain === repo.id
+          ? '.'
+          : repo.domain
       repoMapping[repo.id] = domainPath
     }
     config.repoMapping = repoMapping

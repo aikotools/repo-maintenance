@@ -2,6 +2,7 @@
  * Dialog showing live progress and results of pulling all repos.
  * Uses background execution with polling for real-time feedback.
  * Supports clone-missing + pull-existing flow with GitHub integration.
+ * Checks HTTPS auth before starting and prompts for PAT if needed.
  */
 
 import { useEffect, useState } from 'react'
@@ -14,6 +15,7 @@ import {
   Clock,
   Download,
   EyeOff,
+  Key,
   Loader2,
   Square,
   X,
@@ -28,6 +30,26 @@ interface PullAllDialogProps {
 export function PullAllDialog({ onClose }: PullAllDialogProps) {
   const [executionId, setExecutionId] = useState<string | null>(null)
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set())
+  const [needsAuth, setNeedsAuth] = useState(false)
+  const [token, setToken] = useState('')
+  const [authError, setAuthError] = useState('')
+
+  // Check auth status
+  const authQuery = trpc.git.checkGitAuth.useQuery(undefined, {
+    retry: false,
+  })
+
+  // Save token mutation
+  const saveTokenMutation = trpc.git.saveGitToken.useMutation({
+    onSuccess: () => {
+      setNeedsAuth(false)
+      setAuthError('')
+      pullAllMutation.mutate()
+    },
+    onError: (err) => {
+      setAuthError(err.message)
+    },
+  })
 
   // Start pull-all on mount
   const pullAllMutation = trpc.git.pullAll.useMutation({
@@ -52,14 +74,20 @@ export function PullAllDialog({ onClose }: PullAllDialogProps) {
   // Abort mutation
   const abortMutation = trpc.git.pullAllAbort.useMutation()
 
-  // Start execution on mount
+  // Start execution once auth check completes
   useEffect(() => {
-    pullAllMutation.mutate()
+    if (!authQuery.data) return
+    if (authQuery.data.ok) {
+      pullAllMutation.mutate()
+    } else {
+      setNeedsAuth(true)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [authQuery.data])
 
   const execution = statusQuery.data
-  const isRunning = !execution || execution.status === 'running'
+  const isRunning =
+    !needsAuth && (!execution || execution.status === 'running') && !authQuery.isLoading
   const isDone = execution && (execution.status === 'completed' || execution.status === 'aborted')
 
   const total = execution?.total ?? 0
@@ -77,6 +105,11 @@ export function PullAllDialog({ onClose }: PullAllDialogProps) {
     }
   }
 
+  function handleSaveToken() {
+    if (!token.trim()) return
+    saveTokenMutation.mutate({ token: token.trim() })
+  }
+
   function toggleExpand(repoId: string) {
     setExpandedRepos((prev) => {
       const next = new Set(prev)
@@ -88,7 +121,8 @@ export function PullAllDialog({ onClose }: PullAllDialogProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="flex w-full max-w-2xl flex-col rounded-lg border border-border bg-card shadow-xl"
+      <div
+        className="flex w-full max-w-2xl flex-col rounded-lg border border-border bg-card shadow-xl"
         style={{ maxHeight: '80vh' }}
       >
         {/* Header */}
@@ -115,13 +149,52 @@ export function PullAllDialog({ onClose }: PullAllDialogProps) {
             )}
             <button
               onClick={onClose}
-              disabled={isRunning && !isDone}
+              disabled={isRunning && !isDone && !needsAuth}
               className="text-muted-foreground hover:text-foreground disabled:opacity-50"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
+
+        {/* Auth prompt for HTTPS */}
+        {needsAuth && (
+          <div className="border-b border-border px-4 py-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Key className="h-4 w-4 text-yellow-500" />
+              HTTPS Authentication Required
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Private repos require a GitHub Personal Access Token (PAT) for HTTPS cloning. The
+              token will be stored securely in your macOS Keychain.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <input
+                type="password"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveToken()}
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-sm focus:border-primary focus:outline-none"
+              />
+              <button
+                onClick={handleSaveToken}
+                disabled={!token.trim() || saveTokenMutation.isPending}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {saveTokenMutation.isPending ? 'Saving...' : 'Save & Pull'}
+              </button>
+            </div>
+            {authError && <p className="mt-2 text-xs text-destructive">{authError}</p>}
+            <p className="mt-2 text-xs text-muted-foreground">
+              Create a token at{' '}
+              <span className="font-mono text-foreground">
+                GitHub &gt; Settings &gt; Developer settings &gt; Personal access tokens
+              </span>{' '}
+              with <span className="font-medium">repo</span> scope.
+            </p>
+          </div>
+        )}
 
         {/* Progress bar */}
         {execution && (
@@ -147,10 +220,12 @@ export function PullAllDialog({ onClose }: PullAllDialogProps) {
         )}
 
         {/* Loading state before execution starts */}
-        {!execution && (
+        {!execution && !needsAuth && (
           <div className="flex items-center gap-3 px-4 py-6">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <span className="text-sm">Starting pull operation...</span>
+            <span className="text-sm">
+              {authQuery.isLoading ? 'Checking authentication...' : 'Starting pull operation...'}
+            </span>
           </div>
         )}
 
@@ -210,10 +285,10 @@ export function PullAllDialog({ onClose }: PullAllDialogProps) {
         <div className="flex justify-end border-t border-border px-4 py-3">
           <button
             onClick={onClose}
-            disabled={isRunning && !isDone}
+            disabled={isRunning && !isDone && !needsAuth}
             className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {isDone ? 'Close' : 'Working...'}
+            {isDone || needsAuth ? 'Close' : 'Working...'}
           </button>
         </div>
       </div>
@@ -251,9 +326,7 @@ function PullResultRow({
             <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
           )}
           {result.status === 'completed' && <Check className="h-3.5 w-3.5 text-success" />}
-          {result.status === 'cloned' && (
-            <Download className="h-3.5 w-3.5 text-success" />
-          )}
+          {result.status === 'cloned' && <Download className="h-3.5 w-3.5 text-success" />}
           {result.status === 'failed' && (
             <AlertCircle className="h-3.5 w-3.5 text-destructive" />
           )}
@@ -266,9 +339,7 @@ function PullResultRow({
           {result.status === 'unmapped' && (
             <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />
           )}
-          {!result.status && (
-            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-          )}
+          {!result.status && <Clock className="h-3.5 w-3.5 text-muted-foreground" />}
         </div>
 
         {/* Expand chevron */}
@@ -285,11 +356,13 @@ function PullResultRow({
         </div>
 
         {/* Repo path */}
-        <span className={`min-w-0 flex-1 truncate font-mono text-xs ${
-          result.status === 'skipped' || result.status === 'unmapped'
-            ? 'text-muted-foreground/60'
-            : ''
-        }`}>
+        <span
+          className={`min-w-0 flex-1 truncate font-mono text-xs ${
+            result.status === 'skipped' || result.status === 'unmapped'
+              ? 'text-muted-foreground/60'
+              : ''
+          }`}
+        >
           {result.repoId}
         </span>
 

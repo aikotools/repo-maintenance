@@ -91,6 +91,13 @@ export class RepoScanner {
   }
 
   private async scanDomain(domainPath: string, domainName: string, repos: Repo[]): Promise<void> {
+    // Check if the domain directory itself is a repo (flat structure: rootFolder/repo/)
+    const directRepo = await this.tryParseRepo(domainPath, domainName)
+    if (directRepo) {
+      repos.push(directRepo)
+      return
+    }
+
     const entries = await this.listDirs(domainPath)
 
     for (const entry of entries) {

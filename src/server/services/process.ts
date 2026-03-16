@@ -17,12 +17,13 @@ export interface SpawnResult {
  */
 export function spawnProcess(
   cmd: string[],
-  options?: { cwd?: string; signal?: AbortSignal }
+  options?: { cwd?: string; signal?: AbortSignal; env?: Record<string, string> }
 ): { promise: Promise<SpawnResult>; kill: () => void } {
   const [command, ...args] = cmd
   const proc = spawn(command!, args, {
     cwd: options?.cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: options?.env ? { ...process.env, ...options.env } : undefined,
   })
 
   const kill = () => {
