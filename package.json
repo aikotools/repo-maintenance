@@ -6,6 +6,33 @@
   "publishConfig": {
     "access": "public"
   },
+  "description": "Web-based dashboard for managing multi-repo monorepos. Dependency graph visualization, cascade updates, bulk operations, and Git management across all your packages.",
+  "keywords": [
+    "monorepo",
+    "dependency-graph",
+    "cascade-update",
+    "multi-repo",
+    "repository-management",
+    "git",
+    "npm",
+    "dashboard",
+    "bulk-operations",
+    "dependency-management",
+    "devtools",
+    "cli",
+    "react-flow",
+    "trpc",
+    "hono"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aikotools/repo-maintenance.git"
+  },
+  "homepage": "https://github.com/aikotools/repo-maintenance#readme",
+  "bugs": {
+    "url": "https://github.com/aikotools/repo-maintenance/issues"
+  },
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },
