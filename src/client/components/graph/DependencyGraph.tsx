@@ -1,6 +1,6 @@
 /**
  * Interactive dependency graph using React Flow.
- * Supports domain filtering, focus mode, and affected mode.
+ * Supports domain filtering, multi-root focus mode, and affected mode.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -137,6 +137,7 @@ export function DependencyGraph({ graph, repos, onSelectRepo }: DependencyGraphP
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null)
   const [mode, setMode] = useState<GraphMode>('full')
   const [focusRepoId, setFocusRepoId] = useState<string | null>(null)
+  const [focusRepoIds, setFocusRepoIds] = useState<Set<string>>(new Set())
 
   // Get unique domains
   const domains = useMemo(() => {
@@ -144,11 +145,44 @@ export function DependencyGraph({ graph, repos, onSelectRepo }: DependencyGraphP
     return Array.from(d).sort()
   }, [repos])
 
+  // Sorted repo IDs for the picker
+  const repoIds = useMemo(() => repos.map((r) => r.id).sort(), [repos])
+
   // Build the set of repos with uncommitted changes
   const uncommittedIds = useMemo(
     () => new Set(repos.filter((r) => r.gitStatus?.hasUncommittedChanges).map((r) => r.id)),
     [repos]
   )
+
+  // Toggle a repo in the multi-focus set
+  const handleToggleFocusRepo = useCallback(
+    (id: string) => {
+      setFocusRepoIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) {
+          next.delete(id)
+        } else {
+          next.add(id)
+        }
+        // Auto-switch mode
+        if (next.size > 0) {
+          setMode('focus')
+          setFocusRepoId([...next][0]!)
+        } else {
+          setMode('full')
+          setFocusRepoId(null)
+        }
+        return next
+      })
+    },
+    []
+  )
+
+  const handleClearFocus = useCallback(() => {
+    setFocusRepoId(null)
+    setFocusRepoIds(new Set())
+    setMode('full')
+  }, [])
 
   // Compute which nodes to show based on filters and mode
   const filteredNodeIds = useMemo(() => {
@@ -160,10 +194,9 @@ export function DependencyGraph({ graph, repos, onSelectRepo }: DependencyGraphP
       ids = new Set(graph.nodes.filter((n) => n.domain === selectedDomain).map((n) => n.id))
     }
 
-    // Focus mode: show selected repo + all deps and dependents
-    if (mode === 'focus' && focusRepoId) {
+    // Focus mode: show selected root repos + all their deps and dependents
+    if (mode === 'focus' && focusRepoIds.size > 0) {
       const focusSet = new Set<string>()
-      focusSet.add(focusRepoId)
 
       // Walk dependencies (downward)
       const walkDeps = (id: string) => {
@@ -189,15 +222,50 @@ export function DependencyGraph({ graph, repos, onSelectRepo }: DependencyGraphP
         }
       }
 
-      walkDeps(focusRepoId)
-      walkDependents(focusRepoId)
+      for (const rootId of focusRepoIds) {
+        focusSet.add(rootId)
+        walkDeps(rootId)
+        walkDependents(rootId)
+      }
 
       // Intersect with domain filter
       ids = new Set([...ids].filter((id) => focusSet.has(id)))
     }
+    // Legacy single-focus (clicking a node in the graph)
+    else if (mode === 'focus' && focusRepoId && focusRepoIds.size === 0) {
+      const focusSet = new Set<string>()
+      focusSet.add(focusRepoId)
+
+      const walkDeps = (id: string) => {
+        const repo = graph.nodes.find((n) => n.id === id)
+        if (!repo) return
+        for (const dep of repo.dependencies) {
+          if (dep.repoId && !focusSet.has(dep.repoId)) {
+            focusSet.add(dep.repoId)
+            walkDeps(dep.repoId)
+          }
+        }
+      }
+
+      const walkDependents = (id: string) => {
+        const repo = graph.nodes.find((n) => n.id === id)
+        if (!repo) return
+        for (const depId of repo.dependents) {
+          if (!focusSet.has(depId)) {
+            focusSet.add(depId)
+            walkDependents(depId)
+          }
+        }
+      }
+
+      walkDeps(focusRepoId)
+      walkDependents(focusRepoId)
+
+      ids = new Set([...ids].filter((id) => focusSet.has(id)))
+    }
 
     return ids
-  }, [graph, selectedDomain, mode, focusRepoId])
+  }, [graph, selectedDomain, mode, focusRepoId, focusRepoIds])
 
   // Compute affected set for affected mode
   const affectedIds = useMemo(() => {
@@ -233,11 +301,13 @@ export function DependencyGraph({ graph, repos, onSelectRepo }: DependencyGraphP
       ...node,
       data: {
         ...node.data,
-        isFocused: mode === 'focus' && node.id === focusRepoId,
+        isFocused:
+          mode === 'focus' &&
+          (focusRepoIds.has(node.id) || (focusRepoIds.size === 0 && node.id === focusRepoId)),
         isAffected: mode === 'affected' && affectedIds.has(node.id),
         isDimmed:
           (mode === 'affected' && affectedIds.size > 0 && !affectedIds.has(node.id)) ||
-          (mode === 'focus' && focusRepoId !== null && !filteredNodeIds.has(node.id)),
+          (mode === 'focus' && (focusRepoIds.size > 0 || focusRepoId !== null) && !filteredNodeIds.has(node.id)),
         hasUncommitted: uncommittedIds.has(node.id),
       },
     }))
@@ -257,25 +327,27 @@ export function DependencyGraph({ graph, repos, onSelectRepo }: DependencyGraphP
 
     setNodes(updatedNodes)
     setEdges(updatedEdges)
-  }, [graph, filteredNodeIds, affectedIds, mode, focusRepoId, uncommittedIds, setNodes, setEdges])
+  }, [graph, filteredNodeIds, affectedIds, mode, focusRepoId, focusRepoIds, uncommittedIds, setNodes, setEdges])
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
       if (mode === 'full' || mode === 'affected') {
         // Enter focus mode on click
         setFocusRepoId(node.id)
+        setFocusRepoIds(new Set())
         setMode('focus')
       } else if (mode === 'focus') {
-        if (node.id === focusRepoId) {
-          // Double-click on focused node -> navigate to detail
+        if (node.id === focusRepoId || focusRepoIds.has(node.id)) {
+          // Click on focused node -> navigate to detail
           onSelectRepo(node.id)
         } else {
-          // Click another node -> refocus
+          // Click another node -> refocus to that node
           setFocusRepoId(node.id)
+          setFocusRepoIds(new Set())
         }
       }
     },
-    [mode, focusRepoId, onSelectRepo]
+    [mode, focusRepoId, focusRepoIds, onSelectRepo]
   )
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback(
@@ -284,11 +356,6 @@ export function DependencyGraph({ graph, repos, onSelectRepo }: DependencyGraphP
     },
     [onSelectRepo]
   )
-
-  const handleClearFocus = useCallback(() => {
-    setFocusRepoId(null)
-    setMode('full')
-  }, [])
 
   return (
     <div className="relative h-full w-full">
@@ -299,12 +366,18 @@ export function DependencyGraph({ graph, repos, onSelectRepo }: DependencyGraphP
         mode={mode}
         onModeChange={(m) => {
           setMode(m)
-          if (m !== 'focus') setFocusRepoId(null)
+          if (m !== 'focus') {
+            setFocusRepoId(null)
+            setFocusRepoIds(new Set())
+          }
         }}
         focusRepoId={focusRepoId}
+        focusRepoIds={focusRepoIds}
+        onToggleFocusRepo={handleToggleFocusRepo}
         onClearFocus={handleClearFocus}
         nodeCount={nodes.length}
         edgeCount={edges.length}
+        repoIds={repoIds}
       />
 
       <ReactFlow

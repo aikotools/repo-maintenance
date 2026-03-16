@@ -34,6 +34,8 @@ npm install -g @aikotools/repo-maintenance
    - **Default Branch** (e.g. `main`)
 4. Click **"Refresh repo structure"** to scan your repos
 
+**Multiple projects:** Use the project switcher in the sidebar header to create and switch between projects. To delete a project, first switch to a different one — then hover over the project to delete and click the trash icon.
+
 ![Settings](https://raw.githubusercontent.com/aikotools/repo-maintenance/main/docs/screenshots/settings.png)
 
 ## Prerequisites
