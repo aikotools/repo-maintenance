@@ -6,6 +6,8 @@ Web-based dashboard for managing multi-repo monorepos. Provides dependency graph
 
 ## Features
 
+- **Desktop app** — native window (Electron) that bundles the backend; prebuilt installers on GitHub Releases
+- **`workspace.repos` manifest** — drive repo layout, git URL and branch from a single [vcstool](https://github.com/dirk-thomas/vcstool) file as the source of truth
 - **Dashboard** with repo statistics and domain overview
 - **Interactive dependency graph** visualization with domain filtering
 - **Cascade updates** — propagate dependency changes through the entire chain
@@ -17,22 +19,39 @@ Web-based dashboard for managing multi-repo monorepos. Provides dependency graph
 
 ## Installation
 
+### Desktop app (recommended)
+
+Download a prebuilt installer from the **[GitHub Releases page](https://github.com/aikotools/repo-maintenance/releases)**. CI builds them for every `desktop-v*` tag and attaches them to the release:
+
+| File | Platform |
+|------|----------|
+| `RepoHub-*-universal.dmg` | macOS (Intel + Apple Silicon) |
+| `RepoHub.Setup.*.exe` | Windows |
+| `RepoHub-*.AppImage` | Linux |
+
+The app bundles its own backend — no separate Node.js install needed. Builds are currently **unsigned**: on macOS right-click → **Open** once (or `xattr -dr com.apple.quarantine RepoHub.app`); on Windows pick **"Run anyway"** in SmartScreen. `git` must be installed on the machine.
+
+### CLI (npm)
+
 ```bash
 npm install -g @aikotools/repo-maintenance
+repohub   # serves the dashboard at http://localhost:3100
 ```
 
 ## Quick Start
 
-1. Run `repohub`
-2. Open http://localhost:3100
-3. Click the gear icon (Settings) and configure:
+1. Launch the desktop app (or run `repohub` and open http://localhost:3100)
+2. Click the gear icon (Settings) and choose **one** of:
+
+   **A) Point at a `workspace.repos` (recommended)** — set the **workspace.repos** field to your [vcstool](https://github.com/dirk-thomas/vcstool) manifest. Root folder, GitHub org, ignore list and per-repo branch are then **derived from the file** — no manual mapping. Use **Regenerate** to rewrite the manifest from the current on-disk state.
+
+   **B) Configure manually:**
    - **Project Name** — a label for your monorepo
    - **Root Folder** — path to the directory containing all your repos
    - **npm Organizations** — scoped packages to detect as internal deps (e.g. `@myorg`)
    - **GitHub Organizations** *(required)* — for Pull All operations (e.g. `myorg`)
-   - **Parallel Tasks** (1–20, default: 6)
-   - **Default Branch** (e.g. `main`)
-4. Click **"Refresh repo structure"** to scan your repos
+   - **Parallel Tasks** (1–20, default: 6) · **Default Branch** (e.g. `main`)
+3. Click **"Refresh repo structure"** to scan your repos
 
 **Multiple projects:** Use the project switcher in the sidebar header to create and switch between projects. To delete a project, first switch to a different one — then hover over the project to delete and click the trash icon.
 
@@ -42,11 +61,11 @@ npm install -g @aikotools/repo-maintenance
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| **Node.js** | 24+ | Runtime |
+| **Node.js** | 24+ | Runtime (CLI only — the desktop app bundles it) |
 | **Git** | — | Repository operations |
-| **GitHub CLI (`gh`)** | — | Pull All (clone + GitHub queries) |
+| **GitHub CLI (`gh`)** | — | Pull All *only in manual GitHub-org mode* (not needed with `workspace.repos`) |
 
-GitHub CLI must be authenticated (`gh auth login`).
+When using `workspace.repos`, Pull All clones each repo's URL directly — no `gh` required. In manual GitHub-org mode, `gh` must be authenticated (`gh auth login`).
 
 ## Feature Details
 
@@ -70,12 +89,12 @@ Interactive visualization of all internal dependencies as a node-edge graph (Rea
 
 ### Pull All
 
-Synchronizes all repos with GitHub:
+Synchronizes all repos. Two modes:
 
-1. Fetches all repos from the configured GitHub organization via `gh repo list`
-2. **Clones** missing repos into the correct domain folder
-3. **Pulls** existing repos (skips repos with uncommitted changes)
-4. Shows live progress with per-repo status
+- **With `workspace.repos`** — clones each missing repo from its manifest **URL at the listed branch**; pulls existing ones. No GitHub API/`gh` needed.
+- **Manual GitHub-org mode** — fetches repos via `gh repo list` and clones them into the mapped domain folder.
+
+In both cases: **clones** missing repos, **pulls** existing ones (skipping repos with uncommitted changes), and shows live per-repo progress.
 
 **Status types:**
 
@@ -89,7 +108,7 @@ Synchronizes all repos with GitHub:
 | Has changes | Skipped due to uncommitted changes |
 | Failed | Error during pull/clone |
 
-**Repo mapping:** Settings > Repo Mapping > Edit. Assign repos to domains, ignore repos, or map unmapped repos.
+**Repo mapping:** With a `workspace.repos` this is **derived from the manifest** (and the Repo Mapping editor is hidden). In manual GitHub-org mode, edit it via Settings > Repo Mapping > Edit to assign repos to domains or ignore them.
 
 ### Cascade Updates
 
@@ -155,7 +174,8 @@ Configured via the Settings dialog (gear icon) in the UI. Persisted in `.repoMai
 | Setting | Description | Default |
 |---------|-------------|---------|
 | **Project Name** | Label for your monorepo | — |
-| **Root Folder** | Path containing all repos | — |
+| **workspace.repos** | Path to a vcstool manifest; when set, the source of truth for layout/URL/branch (derives the fields below) | — |
+| **Root Folder** | Path containing all repos *(derived from workspace.repos when set)* | — |
 | **Parallel Tasks** | Concurrency for bulk/pull operations (1–20) | `6` |
 | **Default Branch** | Branch used for pull fallback | `main` |
 | **npm Organizations** | Scoped packages detected as internal deps | — |
@@ -164,6 +184,28 @@ Configured via the Settings dialog (gear icon) in the UI. Persisted in `.repoMai
 | **Git Clone Protocol** | Protocol for cloning repos: `ssh` or `https` | `ssh` |
 | **Quick Actions** | Configurable commands for bulk operations | `pnpm install`, `pnpm test`, `pnpm build`, `git pull` |
 | **Repo Mapping** | Assigns GitHub repos to local domain folders | Auto-generated on refresh |
+
+#### workspace.repos (single source of truth)
+
+Point the **workspace.repos** setting at a [vcstool](https://github.com/dirk-thomas/vcstool) manifest and it becomes the one place that defines your repos:
+
+```yaml
+repositories:
+  repo/backend/core-backend:
+    type: git
+    url: git@github.com:myorg/core-backend.git
+    version: main
+  repo/integrations/landing:
+    type: git
+    url: git@github.com:myorg/landing.git
+    version: feature/new-pages   # per-repo branch is respected
+```
+
+When set, RepoHub:
+
+- **derives** root folder, GitHub org, npm org, ignore list and per-repo branch from the file (these are no longer stored separately in `project.json`);
+- **surfaces not-yet-cloned repos** from the manifest as `missing` (Pull All can clone them at the listed branch);
+- can **regenerate** the manifest from the current on-disk state via the **Regenerate** button (handy after adding/moving repos).
 
 #### Directory Structure
 
@@ -207,7 +249,7 @@ Controls how new repos are cloned during **Pull All**:
 
 ```
 .repoMaintenance/
-├── project.json          # Project configuration + repo mapping
+├── project.json          # Project config (app prefs only when workspace.repos drives layout)
 ├── cached-repos.json     # Repo cache (for fast startup)
 ├── cached-graph.json     # Dependency graph cache
 ├── cascade-history/      # Cascade execution logs
@@ -231,6 +273,10 @@ pnpm dev                 # Backend (3100) + Frontend (3101) concurrently
 | `pnpm dev` | Development (backend + frontend) |
 | `pnpm build` | TypeScript + Vite build |
 | `pnpm start` | Start production server |
+| `pnpm desktop` | Run the Electron desktop app locally |
+| `pnpm desktop:build` | Build desktop installers (`.dmg`/`.exe`/`.AppImage`) into `release/` |
+
+**Cutting a desktop release:** push a `desktop-v*` tag (e.g. `git tag desktop-v1.0.0 && git push --tags`) or run the **Desktop Build** workflow from the Actions tab. CI builds macOS (universal) / Windows / Linux installers and attaches them to a GitHub Release. Artifacts are unsigned (add code-signing secrets to enable signing/notarization).
 | `pnpm test` | Lint + build + depcheck + tests with coverage |
 | `pnpm lint` | ESLint |
 | `pnpm format` | Prettier |
