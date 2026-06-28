@@ -82,6 +82,20 @@ export interface Repo {
   dependencies: InternalDep[]
   dependents: string[]
   gitStatus?: GitStatus
+  /** Listed in workspace.repos but not yet cloned to disk */
+  missing?: boolean
+  /** Git remote URL from workspace.repos (if managed there) */
+  url?: string
+  /** Target branch from workspace.repos (if managed there) */
+  branch?: string
+}
+
+/** One repository entry from a vcstool workspace.repos manifest */
+export interface WorkspaceEntry {
+  /** Path relative to the workspace root, e.g. "repo/backend/core-backend" */
+  path: string
+  url: string
+  branch: string
 }
 
 /** An edge in the dependency graph */
@@ -134,6 +148,10 @@ export interface QuickAction {
 /** Project configuration stored in ~/.repoMaintenance/projects/<slug>/project.json */
 export interface ProjectConfig {
   name: string
+  /** Path to a vcstool workspace.repos manifest. When set, it is the single source
+   *  of truth for repo layout/url/branch; rootFolder, githubOrganizations, ignoreRepos
+   *  and repoMapping are derived from it (and not persisted to project.json). */
+  workspaceFile?: string
   rootFolder: string
   npmOrganizations: string[]
   githubOrganizations: string[]

@@ -3,7 +3,7 @@
  * Supports multiple projects, each with their own settings, caches and history.
  */
 
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { cp, mkdir, readdir, readFile, rm, writeFile } from 'fs/promises'
 import path from 'path'
 import type {
@@ -14,7 +14,32 @@ import type {
   ProjectSummary,
   PullAllHistoryEntry,
   Repo,
+  WorkspaceEntry,
 } from '../../shared/types'
+import {
+  commonPrefixDir,
+  githubOrgFromUrl,
+  parseWorkspaceRepos,
+} from './workspace-repos'
+
+/** Fields derived from workspace.repos — never persisted to project.json */
+const DERIVED_FIELDS = [
+  'rootFolder',
+  'githubOrganizations',
+  'ignoreRepos',
+  'repoMapping',
+  'domainOverrides',
+] as const
+
+export interface ResolvedWorkspace {
+  entries: WorkspaceEntry[]
+  /** Repo names marked SKIPPED in the manifest (the ignore list) */
+  skipped: string[]
+  /** Directory containing the workspace.repos file (the workspace root) */
+  workspaceDir: string
+  /** Scan root: workspaceDir joined with the common path prefix */
+  rootFolder: string
+}
 
 const DEFAULT_CONFIG: ProjectConfig = {
   name: '',
@@ -245,7 +270,8 @@ export class ConfigService {
     const configPath = path.join(this.projectDir, 'project.json')
     try {
       const content = await readFile(configPath, 'utf-8')
-      return { ...DEFAULT_CONFIG, ...JSON.parse(content) }
+      const raw = { ...DEFAULT_CONFIG, ...JSON.parse(content) } as ProjectConfig
+      return this.resolveDerived(raw)
     } catch {
       return { ...DEFAULT_CONFIG }
     }
@@ -254,7 +280,66 @@ export class ConfigService {
   async saveProjectConfig(config: ProjectConfig): Promise<void> {
     await mkdir(this.projectDir, { recursive: true })
     const configPath = path.join(this.projectDir, 'project.json')
-    await writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    // When a workspace.repos drives the project, don't persist derived fields —
+    // they're recomputed on read, keeping project.json to app preferences only.
+    const toSave: ProjectConfig = { ...config }
+    if (config.workspaceFile) {
+      for (const f of DERIVED_FIELDS) delete (toSave as unknown as Record<string, unknown>)[f]
+    }
+    await writeFile(configPath, JSON.stringify(toSave, null, 2), 'utf-8')
+  }
+
+  // ── workspace.repos derivation ──
+
+  /** Read + parse the configured workspace.repos, or null if none/unreadable. */
+  loadWorkspace(config: ProjectConfig): ResolvedWorkspace | null {
+    if (!config.workspaceFile || !existsSync(config.workspaceFile)) return null
+    try {
+      const content = readFileSync(config.workspaceFile, 'utf-8')
+      const { entries, skipped } = parseWorkspaceRepos(content)
+      const workspaceDir = path.dirname(config.workspaceFile)
+      const prefix = commonPrefixDir(entries.map((e) => e.path))
+      return {
+        entries,
+        skipped,
+        workspaceDir,
+        rootFolder: prefix ? path.join(workspaceDir, prefix) : workspaceDir,
+      }
+    } catch {
+      return null
+    }
+  }
+
+  /** Overlay workspace-derived fields onto a raw config (returns a copy). */
+  private resolveDerived(config: ProjectConfig): ProjectConfig {
+    const ws = this.loadWorkspace(config)
+    if (!ws) return config
+
+    const { entries, skipped, rootFolder, workspaceDir } = ws
+
+    const githubOrgs = [
+      ...new Set(entries.map((e) => githubOrgFromUrl(e.url)).filter((o): o is string => !!o)),
+    ]
+    // name → target dir relative to rootFolder (for clone targets / domain)
+    const repoMapping: Record<string, string> = {}
+    for (const e of entries) {
+      const abs = path.join(workspaceDir, e.path)
+      const rel = path.relative(rootFolder, abs)
+      const dir = path.dirname(rel)
+      repoMapping[path.basename(e.path)] = dir === '.' ? '.' : dir
+    }
+
+    return {
+      ...config,
+      rootFolder,
+      githubOrganizations: githubOrgs.length ? githubOrgs : config.githubOrganizations,
+      npmOrganizations:
+        config.npmOrganizations.length || !githubOrgs.length
+          ? config.npmOrganizations
+          : [`@${githubOrgs[0]}`],
+      ignoreRepos: skipped,
+      repoMapping,
+    }
   }
 
   // ── Cached Repos ──

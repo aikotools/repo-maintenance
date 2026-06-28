@@ -33,6 +33,7 @@
     "url": "https://github.com/aikotools/repo-maintenance/issues"
   },
   "license": "MIT",
+  "author": "aikotools",
   "engines": {
     "node": ">=20"
   },
@@ -53,7 +54,36 @@
     "lint": "eslint \"{src,tests}/**/*.{ts,tsx}\"",
     "test": "pnpm lint && pnpm build && pnpm depcheck && vitest --run --coverage",
     "depcheck": "depcheck",
-    "start": "node bin/repohub.js"
+    "start": "node bin/repohub.js",
+    "desktop": "pnpm build && electron desktop/main.cjs",
+    "desktop:build": "pnpm build && electron-builder -p never"
+  },
+  "build": {
+    "appId": "com.aikotools.repohub",
+    "productName": "RepoHub",
+    "asar": false,
+    "extraMetadata": {
+      "main": "desktop/main.cjs"
+    },
+    "files": [
+      "desktop/**/*",
+      "dist/**/*",
+      "bin/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
     "@hono/node-server": "1.19.10",
@@ -82,6 +112,8 @@
     "@vitest/coverage-v8": "4.0.18",
     "concurrently": "9.2.1",
     "depcheck": "1.4.7",
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8",
     "eslint": "10.0.2",
     "eslint-plugin-react-hooks": "7.0.1",
     "eslint-plugin-react-refresh": "0.5.2",

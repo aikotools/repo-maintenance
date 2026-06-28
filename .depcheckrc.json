@@ -10,6 +10,8 @@
     "semantic-release",
     "typescript-eslint",
     "depcheck",
+    "electron",
+    "electron-builder",
     "@tailwindcss/postcss",
     "postcss",
     "tailwindcss"

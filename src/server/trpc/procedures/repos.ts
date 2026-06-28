@@ -14,7 +14,11 @@ export const reposRouter = router({
 
   refresh: publicProcedure.mutation(async ({ ctx }) => {
     const config = await ctx.configService.getProjectConfig()
-    const { repos, domains } = await ctx.scanner.scan(config.domainOverrides)
+    const ws = ctx.configService.loadWorkspace(config)
+    const { repos, domains } = await ctx.scanner.scan(
+      config.domainOverrides,
+      ws ? { entries: ws.entries, workspaceDir: ws.workspaceDir } : undefined
+    )
 
     const resolver = new DependencyResolver(repos)
     const graph = resolver.buildGraph()
@@ -28,18 +32,21 @@ export const reposRouter = router({
     await ctx.configService.saveCachedRepos(repos)
     await ctx.configService.saveCachedGraph(graph)
 
-    // Auto-build repoMapping from scanned directory structure
-    const repoMapping: Record<string, string> = {}
-    for (const repo of repos) {
-      // Flat repos (domain === repo id) map to "." so clone goes to rootFolder/repoName
-      const domainPath = repo.subGroup
-        ? `${repo.domain}/${repo.subGroup}`
-        : repo.domain === repo.id
-          ? '.'
-          : repo.domain
-      repoMapping[repo.id] = domainPath
+    // Auto-build repoMapping from scanned structure — only when NOT workspace-driven
+    // (with a workspace.repos it's derived from the manifest, not persisted).
+    if (!config.workspaceFile) {
+      const repoMapping: Record<string, string> = {}
+      for (const repo of repos) {
+        // Flat repos (domain === repo id) map to "." so clone goes to rootFolder/repoName
+        const domainPath = repo.subGroup
+          ? `${repo.domain}/${repo.subGroup}`
+          : repo.domain === repo.id
+            ? '.'
+            : repo.domain
+        repoMapping[repo.id] = domainPath
+      }
+      config.repoMapping = repoMapping
     }
-    config.repoMapping = repoMapping
 
     // Update lastRefresh timestamp
     config.lastRefresh = new Date().toISOString()

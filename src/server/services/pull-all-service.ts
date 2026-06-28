@@ -8,11 +8,12 @@
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 import simpleGit from 'simple-git'
-import type { PullAllExecution, ProjectConfig, Repo } from '../../shared/types'
+import type { PullAllExecution, ProjectConfig, Repo, WorkspaceEntry } from '../../shared/types'
 import type { ConfigService } from './config-service'
 import type { GitAuthService } from './git-auth-service'
 import { spawnProcess } from './process'
 import { TaskQueue } from './task-queue'
+import { githubOrgFromUrl } from './workspace-repos'
 
 /** Internal item representing what to do for each GitHub repo */
 interface ExecutionItem {
@@ -109,6 +110,14 @@ export class PullAllService {
   ): Promise<void> {
     const exec = this.executions.get(executionId)
     if (!exec) return
+
+    // Workspace.repos drives everything when configured: clone url@branch / pull,
+    // no GitHub API needed.
+    const ws = this.configService.loadWorkspace(config)
+    if (ws && ws.entries.length > 0) {
+      await this.executeWithWorkspace(executionId, config, ws, signal)
+      return
+    }
 
     let effectiveConfig = config
 
@@ -328,6 +337,134 @@ export class PullAllService {
     }
 
     this.saveToHistory(exec)
+  }
+
+  // ── workspace.repos flow: clone missing (url@branch), pull existing ──
+
+  private async executeWithWorkspace(
+    executionId: string,
+    config: ProjectConfig,
+    ws: { entries: WorkspaceEntry[]; skipped: string[]; workspaceDir: string },
+    signal: AbortSignal
+  ): Promise<void> {
+    const exec = this.executions.get(executionId)
+    if (!exec) return
+
+    const ignore = new Set([...(config.ignoreRepos ?? []), ...ws.skipped])
+    const protocol = config.gitProtocol || 'ssh'
+
+    interface WsItem {
+      name: string
+      absPath: string
+      branch: string
+      url: string
+      action: 'pull' | 'clone' | 'skip'
+    }
+
+    const items: WsItem[] = ws.entries.map((entry) => {
+      const absPath = path.join(ws.workspaceDir, entry.path)
+      const name = path.basename(entry.path)
+      const action = ignore.has(name)
+        ? 'skip'
+        : existsSync(path.join(absPath, '.git'))
+          ? 'pull'
+          : 'clone'
+      return { name, absPath, branch: entry.branch, url: entry.url, action }
+    })
+
+    exec.results = items.map((item) => {
+      if (item.action === 'skip') {
+        exec.skippedCount++
+        return { repoId: item.name, success: true, message: 'Ignored', changes: 0, status: 'skipped' as const }
+      }
+      return { repoId: item.name, success: false, message: '', changes: 0, status: 'pending' as const }
+    })
+    exec.total = items.length
+
+    const actionItems = items.filter((i) => i.action !== 'skip')
+    const queue = new TaskQueue(this.defaultConcurrency)
+
+    await queue.run(actionItems, async (item) => {
+      if (signal.aborted) return
+      const result = exec.results.find((r) => r.repoId === item.name)
+      if (!result) return
+      result.status = 'running'
+
+      try {
+        if (item.action === 'pull') {
+          // ponytail: pull only, no auto-checkout — switching branches with local
+          // work would be destructive; branch is used as the tracking fallback.
+          const r = await this.pullWithFallback(item.absPath, item.branch)
+          result.success = r.success
+          result.message = r.message
+          result.changes = r.changes
+          result.status = r.success ? 'completed' : 'failed'
+          if (r.success) {
+            exec.completedCount++
+            if (r.changes > 0) exec.withChanges++
+          } else {
+            exec.failedCount++
+          }
+        } else {
+          const r = await this.cloneFromUrl(item.url, item.absPath, item.branch, protocol)
+          result.success = r.success
+          result.message = r.message
+          result.status = r.success ? 'cloned' : 'failed'
+          if (r.success) exec.clonedCount++
+          else exec.failedCount++
+        }
+      } catch (err) {
+        if (signal.aborted) return
+        result.status = 'failed'
+        result.success = false
+        result.message = `Failed (${item.name}): ${err instanceof Error ? err.message : String(err)}`
+        exec.failedCount++
+      }
+    })
+
+    if (exec.status === 'running') {
+      exec.status = 'completed'
+      exec.completedAt = new Date().toISOString()
+    }
+    this.saveToHistory(exec)
+  }
+
+  /** Clone from a full git URL into targetPath, checking out `branch`. */
+  private async cloneFromUrl(
+    url: string,
+    targetPath: string,
+    branch: string,
+    protocol: 'ssh' | 'https'
+  ): Promise<{ success: boolean; message: string }> {
+    if (existsSync(path.join(targetPath, '.git'))) {
+      return { success: true, message: 'Already exists locally' }
+    }
+
+    const org = githubOrgFromUrl(url)
+    const name = path.basename(targetPath)
+    const cloneUrl =
+      protocol === 'https' && org ? await this.gitAuthService.buildAuthUrl(org, name) : url
+    const env = this.gitAuthService.getGitEnv()
+
+    const args = ['git', 'clone', cloneUrl, targetPath, '--quiet']
+    if (branch) args.push('--branch', branch)
+    const { promise } = spawnProcess(args, { env })
+    const result = await promise
+
+    if (result.exitCode !== 0) {
+      const stderr = result.stderr.replace(/x-access-token:[^@]+@/, 'x-access-token:***@')
+      return { success: false, message: `Clone failed (${protocol}): ${stderr.trim()}` }
+    }
+
+    // Don't persist a tokenized remote
+    if (protocol === 'https' && org) {
+      try {
+        await simpleGit(targetPath).remote(['set-url', 'origin', `https://github.com/${org}/${name}.git`])
+      } catch {
+        // non-critical
+      }
+    }
+    return { success: true, message: `Cloned (${branch || 'default'})` }
   }
 
   // ── Fallback: pull only local repos (old behavior) ──

@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react'
-import { Check, FileDown, FolderOpen, Loader2, Map, Plus, Settings, Trash2, X } from 'lucide-react'
+import { Check, FileDown, FolderOpen, Loader2, Map, Plus, RefreshCw, Settings, Trash2, X } from 'lucide-react'
 import type { ProjectConfig, QuickAction } from '../../../shared/types'
 import { trpc } from '../../trpc'
 import { RepoMappingDialog } from './RepoMappingDialog'
@@ -79,11 +79,18 @@ function SettingsForm({
       onRefetch()
     },
   })
+  const browseFileMutation = trpc.project.browseFile.useMutation({
+    onSuccess: (data) => {
+      if (data.path) setWorkspaceFile(data.path)
+    },
+  })
+  const regenerateMutation = trpc.project.regenerateWorkspace.useMutation()
   const projectQuery = trpc.project.get.useQuery()
 
   const [showMappingDialog, setShowMappingDialog] = useState(false)
 
   const [name, setName] = useState(initialData.name)
+  const [workspaceFile, setWorkspaceFile] = useState(initialData.workspaceFile || '')
   const [rootFolder, setRootFolder] = useState(initialData.rootFolder)
   const [parallelTasks, setParallelTasks] = useState(initialData.parallelTasks)
   const [defaultBranch, setDefaultBranch] = useState(initialData.defaultBranch)
@@ -106,12 +113,14 @@ function SettingsForm({
     ]
   )
 
-  const githubOrgsMissing = !githubOrganizations.trim()
+  const hasWorkspace = !!workspaceFile.trim()
+  const githubOrgsMissing = !hasWorkspace && !githubOrganizations.trim()
 
   function handleSave() {
     if (githubOrgsMissing) return
     updateMutation.mutate({
       name,
+      workspaceFile: workspaceFile.trim() || undefined,
       rootFolder,
       parallelTasks,
       defaultBranch,
@@ -150,21 +159,82 @@ function SettingsForm({
         />
       </div>
 
-      {/* Root Folder */}
+      {/* workspace.repos manifest */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          Root Folder
+          workspace.repos (vcstool manifest)
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={workspaceFile}
+            onChange={(e) => setWorkspaceFile(e.target.value)}
+            placeholder="/path/to/workspace.repos — single source of truth for layout, url & branch"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+          />
+          <button
+            onClick={() => browseFileMutation.mutate({ currentPath: workspaceFile || undefined })}
+            disabled={browseFileMutation.isPending}
+            title="Browse for workspace.repos"
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+          >
+            {browseFileMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FolderOpen className="h-3.5 w-3.5" />
+            )}
+            Browse
+          </button>
+          {hasWorkspace && (
+            <button
+              onClick={() => regenerateMutation.mutate()}
+              disabled={regenerateMutation.isPending}
+              title="Rewrite workspace.repos from the current on-disk repos"
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+            >
+              {regenerateMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : regenerateMutation.isSuccess ? (
+                <Check className="h-3.5 w-3.5 text-success" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Regenerate
+            </button>
+          )}
+        </div>
+        {hasWorkspace && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Layout, root folder, GitHub org, ignore list and per-repo branch are derived from
+            this file. Save, then Refresh to scan.
+          </p>
+        )}
+        {regenerateMutation.isSuccess && regenerateMutation.data && (
+          <p className="mt-1 text-xs text-success">
+            Wrote {regenerateMutation.data.count} repos to workspace.repos
+          </p>
+        )}
+        {regenerateMutation.error && (
+          <p className="mt-1 text-xs text-destructive">{regenerateMutation.error.message}</p>
+        )}
+      </div>
+
+      {/* Root Folder — derived & read-only when a workspace.repos drives the project */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Root Folder {hasWorkspace && <span className="text-muted-foreground">(derived)</span>}
         </label>
         <div className="flex gap-2">
           <input
             type="text"
             value={rootFolder}
             onChange={(e) => setRootFolder(e.target.value)}
-            className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+            disabled={hasWorkspace}
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none disabled:opacity-60"
           />
           <button
             onClick={handleBrowse}
-            disabled={browseMutation.isPending}
+            disabled={browseMutation.isPending || hasWorkspace}
             title="Browse folder"
             className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
           >
@@ -223,14 +293,20 @@ function SettingsForm({
       {/* GitHub Organizations */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          GitHub Organizations (comma-separated) <span className="text-destructive">*</span>
+          GitHub Organizations (comma-separated){' '}
+          {hasWorkspace ? (
+            <span className="text-muted-foreground">(derived)</span>
+          ) : (
+            <span className="text-destructive">*</span>
+          )}
         </label>
         <input
           type="text"
           value={githubOrganizations}
           onChange={(e) => setGithubOrganizations(e.target.value)}
+          disabled={hasWorkspace}
           placeholder="xhubio"
-          className={`w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none ${
+          className={`w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none disabled:opacity-60 ${
             githubOrgsMissing
               ? 'border-destructive focus:border-destructive'
               : 'border-border focus:border-primary'
@@ -321,7 +397,8 @@ function SettingsForm({
         </div>
       </div>
 
-      {/* Repo Mapping */}
+      {/* Repo Mapping — only when NOT workspace-driven (else derived from workspace.repos) */}
+      {!hasWorkspace && (
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
           Repo Mapping
@@ -367,6 +444,7 @@ function SettingsForm({
           </p>
         )}
       </div>
+      )}
 
       {/* Last Refresh (read-only) */}
       {initialData.lastRefresh && (

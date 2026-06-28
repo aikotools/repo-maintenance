@@ -3,9 +3,12 @@
  */
 
 import { execSync } from 'child_process'
-import { existsSync, readFileSync, statSync } from 'fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'fs'
 import path from 'path'
+import simpleGit from 'simple-git'
 import { z } from 'zod'
+import type { WorkspaceEntry } from '../../../shared/types'
+import { serializeWorkspaceRepos } from '../../services/workspace-repos'
 import { BulkService } from '../../services/bulk-service'
 import { CascadeService } from '../../services/cascade-service'
 import { DependencyResolver } from '../../services/dependency-resolver'
@@ -70,6 +73,7 @@ export const projectRouter = router({
     .input(
       z.object({
         name: z.string().optional(),
+        workspaceFile: z.string().optional(),
         rootFolder: z.string().optional(),
         npmOrganizations: z.array(z.string()).optional(),
         githubOrganizations: z.array(z.string()).optional(),
@@ -89,6 +93,9 @@ export const projectRouter = router({
         if (!existsSync(input.rootFolder) || !statSync(input.rootFolder).isDirectory()) {
           throw new Error(`Folder does not exist: ${input.rootFolder}`)
         }
+      }
+      if (input.workspaceFile && !existsSync(input.workspaceFile)) {
+        throw new Error(`File does not exist: ${input.workspaceFile}`)
       }
       const current = await ctx.configService.getProjectConfig()
       const updated = { ...current, ...input }
@@ -176,6 +183,60 @@ export const projectRouter = router({
         return { path: null }
       }
     }),
+
+  browseFile: publicProcedure
+    .input(z.object({ currentPath: z.string().optional() }).optional())
+    .mutation(({ input }) => {
+      const startDir = input?.currentPath
+        ? path.dirname(input.currentPath)
+        : process.env.HOME || '/'
+      try {
+        const script = `
+          set defaultLoc to POSIX file "${startDir}" as alias
+          set chosenFile to choose file with prompt "Select workspace.repos" default location defaultLoc
+          return POSIX path of chosenFile
+        `
+        const result = execSync(`osascript -e '${script}'`, {
+          timeout: 60_000,
+          encoding: 'utf-8',
+        }).trim()
+        return { path: result }
+      } catch {
+        return { path: null }
+      }
+    }),
+
+  /** Rewrite workspace.repos from the current on-disk state (path/url/branch). */
+  regenerateWorkspace: publicProcedure.mutation(async ({ ctx }) => {
+    const config = await ctx.configService.getProjectConfig()
+    if (!config.workspaceFile) {
+      throw new Error('No workspace.repos file configured for this project')
+    }
+    const workspaceDir = path.dirname(config.workspaceFile)
+
+    // Fresh disk scan (no workspace merge) so we only emit repos that exist
+    const { repos } = await ctx.scanner.scan(config.domainOverrides)
+
+    const entries: WorkspaceEntry[] = []
+    for (const repo of repos) {
+      try {
+        const git = simpleGit(repo.absolutePath)
+        const url = (await git.remote(['get-url', 'origin']))?.trim()
+        if (!url) continue
+        const branch = (await git.revparse(['--abbrev-ref', 'HEAD'])).trim()
+        entries.push({
+          path: path.relative(workspaceDir, repo.absolutePath),
+          url,
+          branch,
+        })
+      } catch {
+        // skip repos without an origin remote
+      }
+    }
+
+    writeFileSync(config.workspaceFile, serializeWorkspaceRepos(entries), 'utf-8')
+    return { count: entries.length, file: config.workspaceFile }
+  }),
 
   // ── Multi-project endpoints ──
 

@@ -5,7 +5,14 @@
 
 import { readFile, readdir, stat } from 'fs/promises'
 import path from 'path'
-import type { Domain, InternalDep, Repo, RepoType } from '../../shared/types'
+import type { Domain, InternalDep, Repo, RepoType, WorkspaceEntry } from '../../shared/types'
+
+/** workspace.repos data passed to scan() to surface not-yet-cloned repos */
+export interface WorkspaceMerge {
+  entries: WorkspaceEntry[]
+  /** Directory the entry paths are relative to (where workspace.repos lives) */
+  workspaceDir: string
+}
 
 /** Known sub-group directories within domains */
 const KNOWN_SUB_GROUPS = new Set([
@@ -34,7 +41,10 @@ export class RepoScanner {
     private npmOrgs: string[]
   ) {}
 
-  async scan(domainOverrides?: Record<string, string>): Promise<{ repos: Repo[]; domains: Domain[] }> {
+  async scan(
+    domainOverrides?: Record<string, string>,
+    workspace?: WorkspaceMerge
+  ): Promise<{ repos: Repo[]; domains: Domain[] }> {
     const repoDir = this.rootFolder
     const repos: Repo[] = []
 
@@ -54,6 +64,11 @@ export class RepoScanner {
           repo.domain = override
         }
       }
+    }
+
+    // Merge workspace.repos: attach url/branch to on-disk repos, add missing ones
+    if (workspace) {
+      this.mergeWorkspace(repos, workspace)
     }
 
     // Build npm name -> repo ID lookup
@@ -88,6 +103,46 @@ export class RepoScanner {
     const domains = this.buildDomains(repos)
 
     return { repos, domains }
+  }
+
+  /**
+   * Reconcile scanned repos with the workspace.repos manifest:
+   * attach url/branch to repos already on disk, and append `missing` placeholders
+   * for entries that aren't cloned yet so they show up (and can be cloned).
+   */
+  private mergeWorkspace(repos: Repo[], workspace: WorkspaceMerge): void {
+    const byAbs = new Map(repos.map((r) => [r.absolutePath, r]))
+
+    for (const entry of workspace.entries) {
+      const absolutePath = path.join(workspace.workspaceDir, entry.path)
+      const existing = byAbs.get(absolutePath)
+      if (existing) {
+        existing.url = entry.url
+        existing.branch = entry.branch
+        continue
+      }
+
+      const relativePath = path.relative(this.rootFolder, absolutePath)
+      const parts = relativePath.split(path.sep)
+      const dirName = path.basename(absolutePath)
+      const subGroup = parts.length > 2 && KNOWN_SUB_GROUPS.has(parts[1]!) ? parts[1] : undefined
+
+      repos.push({
+        id: dirName,
+        path: relativePath,
+        absolutePath,
+        domain: parts[0] ?? dirName,
+        subGroup,
+        type: this.detectRepoType(dirName, dirName),
+        npmPackage: '',
+        version: '—',
+        dependencies: [],
+        dependents: [],
+        missing: true,
+        url: entry.url,
+        branch: entry.branch,
+      })
+    }
   }
 
   private async scanDomain(domainPath: string, domainName: string, repos: Repo[]): Promise<void> {
