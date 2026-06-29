@@ -725,13 +725,23 @@ export class PullAllService {
    * Fetch all non-archived repo names from a GitHub organization via `gh` CLI.
    */
   private async fetchGithubRepos(org: string): Promise<string[]> {
+    // Prefer the GitHub REST API with a stored token (or gh's token) — no `gh`
+    // CLI binary required. Fall back to `gh repo list` only when no token exists.
+    const token = await this.gitAuthService.getAnyToken()
+    if (token) {
+      return this.fetchGithubReposApi(org, token)
+    }
+
     const { promise } = spawnProcess([
       'gh', 'repo', 'list', org, '--limit', '200', '--no-archived', '--json', 'name', '--jq', '.[].name',
     ])
     const result = await promise
 
     if (result.exitCode !== 0) {
-      throw new Error(`gh repo list failed (exit ${result.exitCode}): ${result.stderr}`)
+      throw new Error(
+        `gh repo list failed (exit ${result.exitCode}): ${result.stderr.trim()}. ` +
+          'Tip: store a GitHub token in Settings to list repos without the gh CLI.'
+      )
     }
 
     return result.stdout
@@ -739,6 +749,36 @@ export class PullAllService {
       .split('\n')
       .filter(Boolean)
       .sort()
+  }
+
+  /** List non-archived repo names for an org (or user) via the GitHub REST API. */
+  private async fetchGithubReposApi(org: string, token: string): Promise<string[]> {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'repo-maintenance',
+    }
+
+    const collect = async (base: string): Promise<string[] | null> => {
+      const names: string[] = []
+      for (let page = 1; page < 50; page++) {
+        const res = await fetch(`${base}?per_page=100&type=all&page=${page}`, { headers })
+        if (res.status === 404) return null // not an org — caller tries the user endpoint
+        if (!res.ok) {
+          throw new Error(`GitHub API ${res.status} for "${org}": ${(await res.text()).slice(0, 200)}`)
+        }
+        const data = (await res.json()) as { name: string; archived: boolean }[]
+        if (!Array.isArray(data) || data.length === 0) break
+        for (const r of data) if (!r.archived) names.push(r.name)
+        if (data.length < 100) break
+      }
+      return names
+    }
+
+    const asOrg = await collect(`https://api.github.com/orgs/${org}/repos`)
+    const names = asOrg ?? (await collect(`https://api.github.com/users/${org}/repos`)) ?? []
+    return names.sort()
   }
 
   /**

@@ -87,6 +87,19 @@ function SettingsForm({
   const regenerateMutation = trpc.project.regenerateWorkspace.useMutation()
   const projectQuery = trpc.project.get.useQuery()
 
+  // GitHub token (stored in the OS keychain, not project.json)
+  const tokenStatusQuery = trpc.git.gitTokenStatus.useQuery()
+  const saveGitTokenMutation = trpc.git.saveGitToken.useMutation({
+    onSuccess: () => {
+      setGithubToken('')
+      tokenStatusQuery.refetch()
+    },
+  })
+  const deleteGitTokenMutation = trpc.git.deleteGitToken.useMutation({
+    onSuccess: () => tokenStatusQuery.refetch(),
+  })
+  const [githubToken, setGithubToken] = useState('')
+
   const [showMappingDialog, setShowMappingDialog] = useState(false)
 
   const [name, setName] = useState(initialData.name)
@@ -364,6 +377,58 @@ function SettingsForm({
         {githubOrgsMissing && (
           <p className="mt-1 text-xs text-destructive">
             At least one GitHub organization is required for pull operations.
+          </p>
+        )}
+      </div>
+
+      {/* GitHub Token — stored in OS keychain; used to list & clone without the gh CLI */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          GitHub Token{' '}
+          {tokenStatusQuery.data?.stored && <span className="text-success">(stored)</span>}
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="password"
+            value={githubToken}
+            onChange={(e) => setGithubToken(e.target.value)}
+            placeholder={
+              tokenStatusQuery.data?.stored
+                ? '•••••••• (replace) — ghp_… / github_pat_…'
+                : 'ghp_… / github_pat_… (scopes: repo, read:org)'
+            }
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+          />
+          <button
+            onClick={() => saveGitTokenMutation.mutate({ token: githubToken.trim() })}
+            disabled={!githubToken.trim() || saveGitTokenMutation.isPending}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+          >
+            {saveGitTokenMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : saveGitTokenMutation.isSuccess ? (
+              <Check className="h-3.5 w-3.5 text-success" />
+            ) : null}
+            Save
+          </button>
+          {tokenStatusQuery.data?.stored && (
+            <button
+              onClick={() => deleteGitTokenMutation.mutate()}
+              disabled={deleteGitTokenMutation.isPending}
+              title="Remove stored token"
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Stored securely in the OS keychain. Lets RepoHub list &amp; clone GitHub repos via the
+          API — no <code>gh</code> CLI needed. Scopes: <code>repo</code>, <code>read:org</code>.
+        </p>
+        {(saveGitTokenMutation.error || deleteGitTokenMutation.error) && (
+          <p className="mt-1 text-xs text-destructive">
+            {(saveGitTokenMutation.error || deleteGitTokenMutation.error)?.message}
           </p>
         )}
       </div>

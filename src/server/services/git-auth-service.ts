@@ -80,6 +80,14 @@ export class GitAuthService {
   }
 
   /**
+   * Best available GitHub token: the gh CLI token if logged in, else the stored PAT.
+   * Used for API calls (listing repos) so the `gh` CLI isn't strictly required.
+   */
+  async getAnyToken(): Promise<string | null> {
+    return (await this.getGhToken()) ?? (await this.getToken())
+  }
+
+  /**
    * Build the HTTPS clone URL with embedded token.
    */
   async buildAuthUrl(org: string, name: string): Promise<string> {

@@ -188,6 +188,12 @@ export const gitRouter = router({
     return ctx.gitAuthService.checkAuth()
   }),
 
+  /** Whether a GitHub PAT is currently stored in the system keychain. */
+  gitTokenStatus: publicProcedure.query(async ({ ctx }) => {
+    const stored = !!(await ctx.gitAuthService.getToken())
+    return { stored }
+  }),
+
   /** Store a GitHub PAT in the system keychain. */
   saveGitToken: publicProcedure
     .input(z.object({ token: z.string().min(1) }))
