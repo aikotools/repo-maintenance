@@ -124,7 +124,7 @@ export class PullAllService {
     // Explicit org/group URL: auto-detect the provider from the host.
     const source = parseRepoSource(config.sourceUrl)
     if (source?.provider === 'gitlab') {
-      await this.executeWithGitLab(executionId, config, source.host, source.owner, signal)
+      await this.executeWithGitLab(executionId, repos, config, source.host, source.owner, signal)
       return
     }
     // GitHub org from the URL (first path segment) overrides githubOrganizations below.
@@ -487,6 +487,7 @@ export class PullAllService {
 
   private async executeWithGitLab(
     executionId: string,
+    localRepos: Repo[],
     config: ProjectConfig,
     host: string,
     group: string,
@@ -498,6 +499,12 @@ export class PullAllService {
     const token = config.gitlabToken || process.env.GITLAB_TOKEN
     const protocol = config.gitProtocol || 'ssh'
     const ignore = new Set(config.ignoreRepos ?? [])
+
+    // Already-cloned repos keep their existing location — local layout wins.
+    // The GitLab group/subgroup structure is only used as the clone target for
+    // repos that don't exist locally yet.
+    const localByName = new Map<string, Repo>()
+    for (const r of localRepos) localByName.set(path.basename(r.absolutePath), r)
 
     let projects
     try {
@@ -535,13 +542,25 @@ export class PullAllService {
 
     const items: GlItem[] = projects.map((p) => {
       const relPath = groupRelativePath(p.pathWithNamespace, group)
-      const absPath = path.join(config.rootFolder, relPath)
       const name = path.basename(relPath)
-      const action = ignore.has(name)
-        ? 'skip'
-        : existsSync(path.join(absPath, '.git'))
-          ? 'pull'
-          : 'clone'
+      const mirrorPath = path.join(config.rootFolder, relPath)
+      // Prefer an existing local checkout (anywhere) over the mirrored path.
+      const existing =
+        localByName.get(name) ??
+        (existsSync(path.join(mirrorPath, '.git')) ? { absolutePath: mirrorPath } : undefined)
+
+      let action: GlItem['action']
+      let absPath: string
+      if (ignore.has(name)) {
+        action = 'skip'
+        absPath = existing?.absolutePath ?? mirrorPath
+      } else if (existing) {
+        action = 'pull' // keep existing location
+        absPath = existing.absolutePath
+      } else {
+        action = 'clone' // new repo → mirror the GitLab structure
+        absPath = mirrorPath
+      }
       return { relPath, name, absPath, defaultBranch: p.defaultBranch, sshUrl: p.sshUrl, httpUrl: p.httpUrl, action }
     })
 
