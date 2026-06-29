@@ -377,6 +377,8 @@ export interface PullAllExecution {
   total: number
   startedAt: string
   completedAt?: string
+  /** Operation-level error (e.g. org listing failed) shown prominently in the UI */
+  error?: string
 }
 
 /** Persisted pull-all history entry */

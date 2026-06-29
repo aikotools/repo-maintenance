@@ -219,6 +219,13 @@ export function PullAllDialog({ onClose }: PullAllDialogProps) {
           </div>
         )}
 
+        {/* Operation-level error (e.g. org/group listing failed) */}
+        {execution?.error && (
+          <div className="mx-4 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {execution.error}
+          </div>
+        )}
+
         {/* Loading state before execution starts */}
         {!execution && !needsAuth && (
           <div className="flex items-center gap-3 px-4 py-6">

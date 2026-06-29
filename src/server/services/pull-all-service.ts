@@ -201,6 +201,13 @@ export class PullAllService {
       githubRepos = await this.fetchGithubRepos(org)
     } catch (err) {
       console.error('[PullAll] Failed to fetch GitHub repos:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      exec.error =
+        `Could not list GitHub org "${org}" via gh: ${msg}` +
+        (/ENOENT|not found|command not found/i.test(msg)
+          ? ' — the GitHub CLI (gh) was not found on PATH.'
+          : '') +
+        ' Cloning skipped; pulling local repos only.'
       // Fallback to local-only pull
       exec.results = localRepos.map((r) => ({
         repoId: r.path,
@@ -511,11 +518,13 @@ export class PullAllService {
       projects = await listGroupProjects({ host, group, token })
     } catch (err) {
       console.error('[PullAll] GitLab listing failed:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      exec.error = `Could not list GitLab group "${group}" at ${host}: ${msg}`
       exec.results = [
         {
           repoId: group,
           success: false,
-          message: err instanceof Error ? err.message : String(err),
+          message: msg,
           changes: 0,
           status: 'failed' as const,
         },
