@@ -14,6 +14,18 @@ export interface GitLabProject {
   defaultBranch: string
 }
 
+/** Subset of the GitLab project API response we read. */
+interface GitLabApiProject {
+  path_with_namespace: string
+  ssh_url_to_repo: string
+  http_url_to_repo: string
+  default_branch?: string
+  archived?: boolean
+  /** Set while a project is pending deletion (field name varies by GitLab version) */
+  marked_for_deletion_on?: string | null
+  marked_for_deletion_at?: string | null
+}
+
 type FetchLike = (
   url: string,
   init?: { headers?: Record<string, string> }
@@ -61,11 +73,14 @@ export async function listGroupProjects(
     }
     const data = await res.json()
     if (!Array.isArray(data) || data.length === 0) break
-    for (const p of data as Record<string, string>[]) {
+    for (const p of data as GitLabApiProject[]) {
+      // Skip archived and projects marked for deletion — don't clone those.
+      if (p.archived) continue
+      if (p.marked_for_deletion_on || p.marked_for_deletion_at) continue
       projects.push({
-        pathWithNamespace: p.path_with_namespace!,
-        sshUrl: p.ssh_url_to_repo!,
-        httpUrl: p.http_url_to_repo!,
+        pathWithNamespace: p.path_with_namespace,
+        sshUrl: p.ssh_url_to_repo,
+        httpUrl: p.http_url_to_repo,
         defaultBranch: p.default_branch || 'main',
       })
     }

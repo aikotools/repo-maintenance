@@ -29,6 +29,19 @@ describe('gitlab-service', () => {
           http_url_to_repo: 'https://gl/g/backend/core.git',
           default_branch: 'main',
         },
+        // archived + marked-for-deletion projects must be filtered out
+        {
+          path_with_namespace: 'g/old/archived',
+          ssh_url_to_repo: 'git@gl:g/old/archived.git',
+          http_url_to_repo: 'https://gl/g/old/archived.git',
+          archived: true,
+        },
+        {
+          path_with_namespace: 'g/old/pending-delete',
+          ssh_url_to_repo: 'git@gl:g/old/pending-delete.git',
+          http_url_to_repo: 'https://gl/g/old/pending-delete.git',
+          marked_for_deletion_on: '2026-01-01',
+        },
       ],
       2: [
         {
@@ -53,7 +66,9 @@ describe('gitlab-service', () => {
     }
 
     const projects = await listGroupProjects({ group: 'g', token: 'secret' }, fetchImpl)
+    // page 1 had 3 entries but archived + pending-deletion are filtered out
     expect(projects).toHaveLength(2)
+    expect(projects.map((p) => p.pathWithNamespace)).toEqual(['g/backend/core', 'g/web/app'])
     expect(projects[1]).toEqual({
       pathWithNamespace: 'g/web/app',
       sshUrl: 'git@gl:g/web/app.git',
