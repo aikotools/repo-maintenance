@@ -171,6 +171,14 @@ export interface ProjectConfig {
   knownLeafRepos?: string[]
   /** Git protocol for cloning repos: 'ssh' (default) or 'https' */
   gitProtocol?: 'ssh' | 'https'
+  /**
+   * Organization / group URL for Pull All. The provider is auto-detected from the host:
+   * github.com → GitHub (via `gh`); anything else → GitLab (REST API), mirroring subgroups.
+   * Examples: https://github.com/myorg · https://gitlab.com/mygroup · https://gitlab.firma.de/grp/sub
+   */
+  sourceUrl?: string
+  /** GitLab Personal Access Token (read_api, read_repository) for private groups. Falls back to GITLAB_TOKEN env. */
+  gitlabToken?: string
 }
 
 /** Dashboard statistics */

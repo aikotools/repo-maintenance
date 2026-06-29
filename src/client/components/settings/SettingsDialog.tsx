@@ -104,6 +104,14 @@ function SettingsForm({
   const [gitProtocol, setGitProtocol] = useState<'ssh' | 'https'>(
     initialData.gitProtocol || 'ssh'
   )
+  const [sourceUrl, setSourceUrl] = useState(initialData.sourceUrl || '')
+  const [gitlabToken, setGitlabToken] = useState(initialData.gitlabToken || '')
+  const sourceHost = sourceUrl
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+  // Anything with a dotted host that isn't github.com is treated as GitLab
+  const isGitlab = !!sourceHost && sourceHost !== 'github.com' && sourceHost.includes('.')
   const [quickActions, setQuickActions] = useState<QuickAction[]>(
     initialData.quickActions ?? [
       { label: 'pnpm install', command: 'pnpm install' },
@@ -134,6 +142,8 @@ function SettingsForm({
         .filter(Boolean),
       npmRegistry: npmRegistry.trim() || 'https://npm.pkg.github.com',
       gitProtocol,
+      sourceUrl: sourceUrl.trim() || undefined,
+      gitlabToken: gitlabToken.trim() || undefined,
       quickActions: quickActions.filter((a) => a.label.trim() && a.command.trim()),
     })
   }
@@ -289,6 +299,45 @@ function SettingsForm({
           className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
         />
       </div>
+
+      {/* Organization / Group URL — provider auto-detected */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Organization / Group URL{' '}
+          {sourceUrl.trim() && (
+            <span className="text-muted-foreground">
+              ({isGitlab ? 'GitLab' : 'GitHub'} detected)
+            </span>
+          )}
+        </label>
+        <input
+          type="text"
+          value={sourceUrl}
+          onChange={(e) => setSourceUrl(e.target.value)}
+          placeholder="https://github.com/myorg  ·  https://gitlab.com/mygroup  ·  https://gitlab.firma.de/grp/sub"
+          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Pull All clones every repo here. <code>github.com</code> uses <code>gh</code>; any other
+          host is treated as GitLab and mirrors its group/subgroup structure.
+        </p>
+      </div>
+
+      {/* GitLab token — only relevant for GitLab sources */}
+      {isGitlab && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            GitLab Token <span className="text-muted-foreground">(private groups)</span>
+          </label>
+          <input
+            type="password"
+            value={gitlabToken}
+            onChange={(e) => setGitlabToken(e.target.value)}
+            placeholder="glpat-… (read_api, read_repository) — or set GITLAB_TOKEN env"
+            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+          />
+        </div>
+      )}
 
       {/* GitHub Organizations */}
       <div>

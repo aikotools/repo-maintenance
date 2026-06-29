@@ -86,6 +86,8 @@ export const projectRouter = router({
           .optional(),
         knownLeafRepos: z.array(z.string()).optional(),
         gitProtocol: z.enum(['ssh', 'https']).optional(),
+        sourceUrl: z.string().optional(),
+        gitlabToken: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

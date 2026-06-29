@@ -14,6 +14,8 @@ import type { GitAuthService } from './git-auth-service'
 import { spawnProcess } from './process'
 import { TaskQueue } from './task-queue'
 import { githubOrgFromUrl } from './workspace-repos'
+import { groupRelativePath, listGroupProjects } from './gitlab-service'
+import { parseRepoSource } from './repo-source'
 
 /** Internal item representing what to do for each GitHub repo */
 interface ExecutionItem {
@@ -119,6 +121,16 @@ export class PullAllService {
       return
     }
 
+    // Explicit org/group URL: auto-detect the provider from the host.
+    const source = parseRepoSource(config.sourceUrl)
+    if (source?.provider === 'gitlab') {
+      await this.executeWithGitLab(executionId, config, source.host, source.owner, signal)
+      return
+    }
+    // GitHub org from the URL (first path segment) overrides githubOrganizations below.
+    const sourceGithubOrg =
+      source?.provider === 'github' ? source.owner.split('/')[0] : undefined
+
     let effectiveConfig = config
 
     // Auto-import mapping from repo-maintenance.sh if not yet configured
@@ -144,10 +156,11 @@ export class PullAllService {
     const hasMappingNow =
       effectiveConfig.repoMapping && Object.keys(effectiveConfig.repoMapping).length > 0
     const hasGitHubOrg =
-      effectiveConfig.githubOrganizations && effectiveConfig.githubOrganizations.length > 0
+      !!sourceGithubOrg ||
+      (effectiveConfig.githubOrganizations && effectiveConfig.githubOrganizations.length > 0)
 
     if (hasMappingNow || hasGitHubOrg) {
-      await this.executeWithGitHub(executionId, repos, effectiveConfig, signal)
+      await this.executeWithGitHub(executionId, repos, effectiveConfig, sourceGithubOrg, signal)
     } else {
       // Fallback: only pull locally known repos (old behavior)
       exec.results = repos.map((r) => ({
@@ -168,12 +181,14 @@ export class PullAllService {
     executionId: string,
     localRepos: Repo[],
     config: ProjectConfig,
+    orgOverride: string | undefined,
     signal: AbortSignal
   ): Promise<void> {
     const exec = this.executions.get(executionId)
     if (!exec) return
 
-    const org = config.githubOrganizations[0]
+    // Tolerate a leading "@" (npm-style) that users often paste — invalid for `gh`.
+    const org = (orgOverride || config.githubOrganizations[0])?.replace(/^@+/, '')
     if (!org) {
       exec.status = 'completed'
       exec.completedAt = new Date().toISOString()
@@ -222,8 +237,9 @@ export class PullAllService {
           action: 'clone',
           targetDir: config.repoMapping[ghRepo],
         })
-      } else if (!hasMapping) {
-        // No mapping configured at all — clone into root folder (flat structure)
+      } else if (!hasMapping || orgOverride) {
+        // No mapping, or an explicit source URL was given ("clone the whole org") —
+        // clone unmapped repos into the root folder instead of skipping them.
         items.push({ name: ghRepo, action: 'clone', targetDir: '.' })
       } else {
         items.push({ name: ghRepo, action: 'unmapped' })
@@ -465,6 +481,160 @@ export class PullAllService {
       }
     }
     return { success: true, message: `Cloned (${branch || 'default'})` }
+  }
+
+  // ── GitLab flow: clone all group projects mirroring the group structure ──
+
+  private async executeWithGitLab(
+    executionId: string,
+    config: ProjectConfig,
+    host: string,
+    group: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    const exec = this.executions.get(executionId)
+    if (!exec) return
+
+    const token = config.gitlabToken || process.env.GITLAB_TOKEN
+    const protocol = config.gitProtocol || 'ssh'
+    const ignore = new Set(config.ignoreRepos ?? [])
+
+    let projects
+    try {
+      projects = await listGroupProjects({ host, group, token })
+    } catch (err) {
+      console.error('[PullAll] GitLab listing failed:', err)
+      exec.results = [
+        {
+          repoId: group,
+          success: false,
+          message: err instanceof Error ? err.message : String(err),
+          changes: 0,
+          status: 'failed' as const,
+        },
+      ]
+      exec.total = 1
+      exec.failedCount = 1
+      exec.status = 'completed'
+      exec.completedAt = new Date().toISOString()
+      this.saveToHistory(exec)
+      return
+    }
+
+    if (signal.aborted) return
+
+    interface GlItem {
+      relPath: string
+      name: string
+      absPath: string
+      defaultBranch: string
+      sshUrl: string
+      httpUrl: string
+      action: 'pull' | 'clone' | 'skip'
+    }
+
+    const items: GlItem[] = projects.map((p) => {
+      const relPath = groupRelativePath(p.pathWithNamespace, group)
+      const absPath = path.join(config.rootFolder, relPath)
+      const name = path.basename(relPath)
+      const action = ignore.has(name)
+        ? 'skip'
+        : existsSync(path.join(absPath, '.git'))
+          ? 'pull'
+          : 'clone'
+      return { relPath, name, absPath, defaultBranch: p.defaultBranch, sshUrl: p.sshUrl, httpUrl: p.httpUrl, action }
+    })
+
+    exec.results = items.map((item) => {
+      if (item.action === 'skip') {
+        exec.skippedCount++
+        return { repoId: item.relPath, success: true, message: 'Ignored', changes: 0, status: 'skipped' as const }
+      }
+      return { repoId: item.relPath, success: false, message: '', changes: 0, status: 'pending' as const }
+    })
+    exec.total = items.length
+
+    const actionItems = items.filter((i) => i.action !== 'skip')
+    const queue = new TaskQueue(this.defaultConcurrency)
+
+    await queue.run(actionItems, async (item) => {
+      if (signal.aborted) return
+      const result = exec.results.find((r) => r.repoId === item.relPath)
+      if (!result) return
+      result.status = 'running'
+
+      try {
+        if (item.action === 'pull') {
+          const r = await this.pullWithFallback(item.absPath, item.defaultBranch)
+          result.success = r.success
+          result.message = r.message
+          result.changes = r.changes
+          result.status = r.success ? 'completed' : 'failed'
+          if (r.success) {
+            exec.completedCount++
+            if (r.changes > 0) exec.withChanges++
+          } else {
+            exec.failedCount++
+          }
+        } else {
+          const r = await this.cloneGitLab(item.sshUrl, item.httpUrl, item.absPath, protocol, token)
+          result.success = r.success
+          result.message = r.message
+          result.status = r.success ? 'cloned' : 'failed'
+          if (r.success) exec.clonedCount++
+          else exec.failedCount++
+        }
+      } catch (err) {
+        if (signal.aborted) return
+        result.status = 'failed'
+        result.success = false
+        result.message = `Failed (${item.name}): ${err instanceof Error ? err.message : String(err)}`
+        exec.failedCount++
+      }
+    })
+
+    if (exec.status === 'running') {
+      exec.status = 'completed'
+      exec.completedAt = new Date().toISOString()
+    }
+    this.saveToHistory(exec)
+  }
+
+  /** Clone a GitLab project; git creates the nested parent dirs to mirror the structure. */
+  private async cloneGitLab(
+    sshUrl: string,
+    httpUrl: string,
+    targetPath: string,
+    protocol: 'ssh' | 'https',
+    token?: string
+  ): Promise<{ success: boolean; message: string }> {
+    if (existsSync(path.join(targetPath, '.git'))) {
+      return { success: true, message: 'Already exists locally' }
+    }
+
+    let url = protocol === 'https' ? httpUrl : sshUrl
+    if (protocol === 'https' && token && httpUrl.startsWith('https://')) {
+      url = httpUrl.replace('https://', `https://oauth2:${token}@`)
+    }
+    const env = this.gitAuthService.getGitEnv()
+
+    const { promise } = spawnProcess(['git', 'clone', url, targetPath, '--quiet'], { env })
+    const result = await promise
+
+    if (result.exitCode !== 0) {
+      const stderr = result.stderr.replace(/oauth2:[^@]+@/, 'oauth2:***@')
+      return { success: false, message: `Clone failed (${protocol}): ${stderr.trim()}` }
+    }
+
+    // Don't persist a tokenized remote
+    if (protocol === 'https' && token) {
+      try {
+        await simpleGit(targetPath).remote(['set-url', 'origin', httpUrl])
+      } catch {
+        // non-critical
+      }
+    }
+    return { success: true, message: `Cloned (${protocol})` }
   }
 
   // ── Fallback: pull only local repos (old behavior) ──
