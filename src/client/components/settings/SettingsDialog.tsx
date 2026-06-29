@@ -108,9 +108,6 @@ function SettingsForm({
   const [parallelTasks, setParallelTasks] = useState(initialData.parallelTasks)
   const [defaultBranch, setDefaultBranch] = useState(initialData.defaultBranch)
   const [npmOrganizations, setNpmOrganizations] = useState(initialData.npmOrganizations.join(', '))
-  const [githubOrganizations, setGithubOrganizations] = useState(
-    initialData.githubOrganizations.join(', ')
-  )
   const [npmRegistry, setNpmRegistry] = useState(
     initialData.npmRegistry || 'https://npm.pkg.github.com'
   )
@@ -135,10 +132,8 @@ function SettingsForm({
   )
 
   const hasWorkspace = !!workspaceFile.trim()
-  const githubOrgsMissing = !hasWorkspace && !githubOrganizations.trim()
 
   function handleSave() {
-    if (githubOrgsMissing) return
     updateMutation.mutate({
       name,
       workspaceFile: workspaceFile.trim() || undefined,
@@ -146,10 +141,6 @@ function SettingsForm({
       parallelTasks,
       defaultBranch,
       npmOrganizations: npmOrganizations
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
-      githubOrganizations: githubOrganizations
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
@@ -316,7 +307,7 @@ function SettingsForm({
       {/* Organization / Group URL — provider auto-detected */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          Organization / Group URL{' '}
+          Organization / Group{' '}
           {sourceUrl.trim() && (
             <span className="text-muted-foreground">
               ({isGitlab ? 'GitLab' : 'GitHub'} detected)
@@ -327,12 +318,13 @@ function SettingsForm({
           type="text"
           value={sourceUrl}
           onChange={(e) => setSourceUrl(e.target.value)}
-          placeholder="https://github.com/myorg  ·  https://gitlab.com/mygroup  ·  https://gitlab.firma.de/grp/sub"
+          placeholder="xhubio   ·   https://gitlab.com/mygroup   ·   https://gitlab.firma.de/grp/sub"
           className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Pull All clones every repo here. <code>github.com</code> uses <code>gh</code>; any other
-          host is treated as GitLab and mirrors its group/subgroup structure.
+          <strong>GitHub:</strong> just the org name (e.g. <code>xhubio</code>). <strong>GitLab:</strong>{' '}
+          a full URL so the host is known (<code>gitlab.com</code> or self-hosted). Pull All clones
+          every repo here; GitLab mirrors its group/subgroup structure.
         </p>
       </div>
 
@@ -351,35 +343,6 @@ function SettingsForm({
           />
         </div>
       )}
-
-      {/* GitHub Organizations */}
-      <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          GitHub Organizations (comma-separated){' '}
-          {hasWorkspace ? (
-            <span className="text-muted-foreground">(derived)</span>
-          ) : (
-            <span className="text-destructive">*</span>
-          )}
-        </label>
-        <input
-          type="text"
-          value={githubOrganizations}
-          onChange={(e) => setGithubOrganizations(e.target.value)}
-          disabled={hasWorkspace}
-          placeholder="xhubio"
-          className={`w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none disabled:opacity-60 ${
-            githubOrgsMissing
-              ? 'border-destructive focus:border-destructive'
-              : 'border-border focus:border-primary'
-          }`}
-        />
-        {githubOrgsMissing && (
-          <p className="mt-1 text-xs text-destructive">
-            At least one GitHub organization is required for pull operations.
-          </p>
-        )}
-      </div>
 
       {/* GitHub Token — stored in OS keychain; used to list & clone without the gh CLI */}
       <div>
@@ -589,7 +552,7 @@ function SettingsForm({
         </button>
         <button
           onClick={handleSave}
-          disabled={isSaving || githubOrgsMissing}
+          disabled={isSaving}
           className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {isSaving ? 'Saving...' : 'Save'}
