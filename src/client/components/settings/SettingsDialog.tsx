@@ -344,7 +344,8 @@ function SettingsForm({
         </div>
       )}
 
-      {/* GitHub Token — stored in OS keychain; used to list & clone without the gh CLI */}
+      {/* GitHub Token — shown only for GitHub sources (GitLab uses its own token above) */}
+      {!isGitlab && (
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
           GitHub Token{' '}
@@ -395,6 +396,7 @@ function SettingsForm({
           </p>
         )}
       </div>
+      )}
 
       {/* npm Registry */}
       <div>
