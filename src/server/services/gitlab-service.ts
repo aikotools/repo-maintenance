@@ -52,20 +52,22 @@ export function groupRelativePath(pathWithNamespace: string, group: string): str
     : pathWithNamespace
 }
 
-/** List all (non-archived) projects in a group and its subgroups, following pagination. */
+/** List all projects in a group and its subgroups, following pagination. Archived projects are
+ *  skipped unless opts.includeArchived is set. */
 export async function listGroupProjects(
-  opts: { host?: string; group: string; token?: string },
+  opts: { host?: string; group: string; token?: string; includeArchived?: boolean },
   fetchImpl: FetchLike = fetch as unknown as FetchLike
 ): Promise<GitLabProject[]> {
   const base = gitlabApiBase(opts.host)
   const enc = encodeURIComponent(opts.group.replace(/^\/+|\/+$/g, ''))
   const headers: Record<string, string> = opts.token ? { 'PRIVATE-TOKEN': opts.token } : {}
+  const archivedFilter = opts.includeArchived ? '' : '&archived=false'
 
   const projects: GitLabProject[] = []
   let page = 1
   // Hard page cap so a misconfigured host can't loop forever
   for (let guard = 0; guard < 100; guard++) {
-    const url = `${base}/groups/${enc}/projects?include_subgroups=true&archived=false&per_page=100&page=${page}`
+    const url = `${base}/groups/${enc}/projects?include_subgroups=true${archivedFilter}&per_page=100&page=${page}`
     const res = await fetchImpl(url, { headers })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
@@ -74,8 +76,8 @@ export async function listGroupProjects(
     const data = await res.json()
     if (!Array.isArray(data) || data.length === 0) break
     for (const p of data as GitLabApiProject[]) {
-      // Skip archived and projects marked for deletion — don't clone those.
-      if (p.archived) continue
+      // Skip archived (unless opted in) and projects marked for deletion — don't clone those.
+      if (p.archived && !opts.includeArchived) continue
       if (p.marked_for_deletion_on || p.marked_for_deletion_at) continue
       projects.push({
         pathWithNamespace: p.path_with_namespace,

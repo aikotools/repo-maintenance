@@ -80,6 +80,43 @@ describe('gitlab-service', () => {
     expect(seen[0]!.url).toContain('include_subgroups=true')
   })
 
+  it('includes archived projects (but not pending-deletion) when includeArchived is set', async () => {
+    let seenUrl = ''
+    const fetchImpl = async (url: string) => {
+      seenUrl = url
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [
+          {
+            path_with_namespace: 'g/active',
+            ssh_url_to_repo: 'git@gl:g/active.git',
+            http_url_to_repo: 'https://gl/g/active.git',
+          },
+          {
+            path_with_namespace: 'g/old/archived',
+            ssh_url_to_repo: 'git@gl:g/old/archived.git',
+            http_url_to_repo: 'https://gl/g/old/archived.git',
+            archived: true,
+          },
+          {
+            path_with_namespace: 'g/old/pending-delete',
+            ssh_url_to_repo: 'git@gl:g/old/pending-delete.git',
+            http_url_to_repo: 'https://gl/g/old/pending-delete.git',
+            marked_for_deletion_on: '2026-01-01',
+          },
+        ],
+        text: async () => '',
+        headers: { get: () => null },
+      }
+    }
+
+    const projects = await listGroupProjects({ group: 'g', includeArchived: true }, fetchImpl)
+    expect(projects.map((p) => p.pathWithNamespace)).toEqual(['g/active', 'g/old/archived'])
+    // archived filter must be dropped from the query so the API returns archived projects
+    expect(seenUrl).not.toContain('archived=false')
+  })
+
   it('throws with status on API error', async () => {
     const fetchImpl = async () => ({
       ok: false,

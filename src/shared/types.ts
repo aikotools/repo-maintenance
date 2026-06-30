@@ -179,6 +179,8 @@ export interface ProjectConfig {
   sourceUrl?: string
   /** GitLab Personal Access Token (read_api, read_repository) for private groups. Falls back to GITLAB_TOKEN env. */
   gitlabToken?: string
+  /** Include archived repos/projects in Pull All (default: skip them). */
+  pullArchived?: boolean
 }
 
 /** Dashboard statistics */

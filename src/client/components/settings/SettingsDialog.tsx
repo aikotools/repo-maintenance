@@ -116,6 +116,7 @@ function SettingsForm({
   )
   const [sourceUrl, setSourceUrl] = useState(initialData.sourceUrl || '')
   const [gitlabToken, setGitlabToken] = useState(initialData.gitlabToken || '')
+  const [pullArchived, setPullArchived] = useState(initialData.pullArchived ?? false)
   const sourceHost = sourceUrl
     .trim()
     .replace(/^https?:\/\//, '')
@@ -148,6 +149,7 @@ function SettingsForm({
       gitProtocol,
       sourceUrl: sourceUrl.trim() || undefined,
       gitlabToken: gitlabToken.trim() || undefined,
+      pullArchived,
       quickActions: quickActions.filter((a) => a.label.trim() && a.command.trim()),
     })
   }
@@ -326,6 +328,14 @@ function SettingsForm({
           a full URL so the host is known (<code>gitlab.com</code> or self-hosted). Pull All clones
           every repo here; GitLab mirrors its group/subgroup structure.
         </p>
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={pullArchived}
+            onChange={(e) => setPullArchived(e.target.checked)}
+          />
+          Include archived repos
+        </label>
       </div>
 
       {/* GitLab token — only relevant for GitLab sources */}

@@ -198,7 +198,7 @@ export class PullAllService {
     // 1. Fetch GitHub repos
     let githubRepos: string[]
     try {
-      githubRepos = await this.fetchGithubRepos(org)
+      githubRepos = await this.fetchGithubRepos(org, config.pullArchived)
     } catch (err) {
       console.error('[PullAll] Failed to fetch GitHub repos:', err)
       const msg = err instanceof Error ? err.message : String(err)
@@ -515,7 +515,7 @@ export class PullAllService {
 
     let projects
     try {
-      projects = await listGroupProjects({ host, group, token })
+      projects = await listGroupProjects({ host, group, token, includeArchived: config.pullArchived })
     } catch (err) {
       console.error('[PullAll] GitLab listing failed:', err)
       const msg = err instanceof Error ? err.message : String(err)
@@ -722,18 +722,21 @@ export class PullAllService {
   // ── Helper methods ──
 
   /**
-   * Fetch all non-archived repo names from a GitHub organization via `gh` CLI.
+   * Fetch all repo names from a GitHub organization. Archived repos are skipped
+   * unless includeArchived is set.
    */
-  private async fetchGithubRepos(org: string): Promise<string[]> {
+  private async fetchGithubRepos(org: string, includeArchived = false): Promise<string[]> {
     // Prefer the GitHub REST API with a stored token (or gh's token) — no `gh`
     // CLI binary required. Fall back to `gh repo list` only when no token exists.
     const token = await this.gitAuthService.getAnyToken()
     if (token) {
-      return this.fetchGithubReposApi(org, token)
+      return this.fetchGithubReposApi(org, token, includeArchived)
     }
 
     const { promise } = spawnProcess([
-      'gh', 'repo', 'list', org, '--limit', '200', '--no-archived', '--json', 'name', '--jq', '.[].name',
+      'gh', 'repo', 'list', org, '--limit', '200',
+      ...(includeArchived ? [] : ['--no-archived']),
+      '--json', 'name', '--jq', '.[].name',
     ])
     const result = await promise
 
@@ -751,8 +754,8 @@ export class PullAllService {
       .sort()
   }
 
-  /** List non-archived repo names for an org (or user) via the GitHub REST API. */
-  private async fetchGithubReposApi(org: string, token: string): Promise<string[]> {
+  /** List repo names for an org (or user) via the GitHub REST API. Archived repos are skipped unless includeArchived. */
+  private async fetchGithubReposApi(org: string, token: string, includeArchived = false): Promise<string[]> {
     const headers = {
       Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
@@ -770,7 +773,7 @@ export class PullAllService {
         }
         const data = (await res.json()) as { name: string; archived: boolean }[]
         if (!Array.isArray(data) || data.length === 0) break
-        for (const r of data) if (!r.archived) names.push(r.name)
+        for (const r of data) if (includeArchived || !r.archived) names.push(r.name)
         if (data.length < 100) break
       }
       return names
