@@ -14,16 +14,6 @@ export interface WorkspaceMerge {
   workspaceDir: string
 }
 
-/** Known sub-group directories within domains */
-const KNOWN_SUB_GROUPS = new Set([
-  'outbound',
-  'inbound',
-  'validators',
-  'gov-api',
-  'tax',
-  'export',
-])
-
 /** Directories to skip during scanning */
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', '.repoMaintenance'])
 
@@ -125,7 +115,7 @@ export class RepoScanner {
       const relativePath = path.relative(this.rootFolder, absolutePath)
       const parts = relativePath.split(path.sep)
       const dirName = path.basename(absolutePath)
-      const subGroup = parts.length > 2 && KNOWN_SUB_GROUPS.has(parts[1]!) ? parts[1] : undefined
+      const subGroup = parts.length > 2 ? parts[1] : undefined
 
       repos.push({
         id: dirName,
@@ -152,36 +142,63 @@ export class RepoScanner {
       repos.push(directRepo)
       return
     }
+    await this.walk(domainPath, domainName, repos, 1)
+  }
 
-    const entries = await this.listDirs(domainPath)
-
-    for (const entry of entries) {
-      const entryPath = path.join(domainPath, entry)
-
-      if (KNOWN_SUB_GROUPS.has(entry)) {
-        // This is a sub-group (e.g. invoice/outbound/) - scan its children
-        const subEntries = await this.listDirs(entryPath)
-        for (const subEntry of subEntries) {
-          const subPath = path.join(entryPath, subEntry)
-          const repo = await this.tryParseRepo(subPath, domainName, entry)
-          if (repo) repos.push(repo)
-        }
-      } else if (domainName === 'apps') {
-        // apps/ has nested structure: apps/invoice/saas-invoice-backend
-        const appEntries = await this.listDirs(entryPath)
-        for (const appEntry of appEntries) {
-          const appPath = path.join(entryPath, appEntry)
-          const repo = await this.tryParseRepo(appPath, domainName, entry)
-          if (repo) repos.push(repo)
-        }
-        // Also check if the entry itself is a repo (e.g. apps/invoice.xhub-customer-saas)
-        const directRepo = await this.tryParseRepo(entryPath, domainName)
-        if (directRepo) repos.push(directRepo)
-      } else {
-        // Direct repo directory
-        const repo = await this.tryParseRepo(entryPath, domainName)
-        if (repo) repos.push(repo)
+  /**
+   * Recursively collect repos below a domain, at any nesting depth. A directory
+   * with a parseable package.json is a repo — don't descend into it. Anything
+   * else is a grouping folder (products/<produkt>/, packages/backend/,
+   * .../integrations/) and is walked further.
+   */
+  private async walk(dir: string, domainName: string, repos: Repo[], depth: number): Promise<void> {
+    if (depth > 4) return // ponytail: deepest real layout is 4 segments (products/x/packages/repo)
+    for (const entry of await this.listDirs(dir)) {
+      const entryPath = path.join(dir, entry)
+      const repo = await this.tryParseRepo(entryPath, domainName, this.subGroupFor(entryPath))
+      if (repo) {
+        repos.push(repo)
+        continue
       }
+      // A .git dir marks a repo even without a (parseable) package.json — e.g. pure
+      // content repos like n8n workflows. Include it bare so git ops work, and don't
+      // trawl its internals for nested package.json files.
+      if (await this.isDir(path.join(entryPath, '.git'))) {
+        repos.push(this.bareRepo(entryPath, domainName))
+        continue
+      }
+      await this.walk(entryPath, domainName, repos, depth + 1)
+    }
+  }
+
+  /** Sub-group = path segment between domain and repo, e.g. products/<verein>/x, packages/<backend>/x. */
+  private subGroupFor(repoPath: string): string | undefined {
+    const parts = path.relative(this.rootFolder, repoPath).split(path.sep)
+    return parts.length > 2 ? parts[1] : undefined
+  }
+
+  /** Git repo without a parseable package.json — no npm identity, no dependencies. */
+  private bareRepo(repoPath: string, domain: string): Repo {
+    const dirName = path.basename(repoPath)
+    return {
+      id: dirName,
+      path: path.relative(this.rootFolder, repoPath),
+      absolutePath: repoPath,
+      domain,
+      subGroup: this.subGroupFor(repoPath),
+      type: this.detectRepoType('', dirName),
+      npmPackage: '',
+      version: '—',
+      dependencies: [],
+      dependents: [],
+    }
+  }
+
+  private async isDir(p: string): Promise<boolean> {
+    try {
+      return (await stat(p)).isDirectory()
+    } catch {
+      return false
     }
   }
 
